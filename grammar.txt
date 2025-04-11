@@ -1,0 +1,41 @@
+program         := function+
+function        := 'fn' identifier parameters return_type block
+parameters      := '(' [parameter_list] ')'
+parameter_list  := parameter (',' parameter)*
+parameter       := identifier ':' type
+type            := 'int64' | 'string' | 'bool' | 'void'
+return_type     := type
+block           := '{' statement* '}'
+statement       := (variable_decl | assignment | if_stmt | while_loop | return_stmt | function_call) ';'
+variable_decl   := 'let' identifier '=' expression
+assignment      := identifier '=' expression
+if_stmt         := 'if' expression block ['else' block]
+while_loop      := 'while' expression block
+return_stmt     := 'ret' expression
+function_call   := identifier '(' [expression_list] ')'
+expression_list := expression (',' expression)*
+expression      := primary (operator primary)*
+primary         := number | string | bool | identifier | '(' expression ')' | function_call
+operator        := '+' | '-' | '*' | '/' | '==' | '!=' | '<' | '>' | '<=' | '>=' | '&&' | '||'
+
+identifier      := letter (letter | digit | '_')*
+letter          := 'a'-'z' | 'A'-'Z'
+digit           := '0'-'9'
+number          := digit+
+string          := '"' (character | escape_seq)* '"'
+bool            := 'true' | 'false'
+
+
+
+S := fun | fun S
+fun := 'fn' ident params return block
+params := '(' params_list ')'
+params_list := param | param ',' params_list
+param := ident ':' type
+type := 'int64' | 'string'
+return := type
+block := '{' statements '}'
+statements := statement ';' | statement ';' statements
+statement := ident '=' expr | 'if' expr block | 'while' expr block | 'return' expr | ident '(' expr_list ')'
+expr_list := expr | expr ',' expr_list
+expr := ident | number | string

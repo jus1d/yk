@@ -1,11 +1,10 @@
 use std::fs;
 
-#[allow(dead_code)]
 #[derive(Debug)]
-enum Token {
-    Word(String),
-    Number(i64),
-    Str(String),
+enum TokenKind {
+    Word,
+    Number,
+    String,
 
     OpenParen,
     CloseParen,
@@ -25,6 +24,31 @@ enum Token {
     Exponent,
 }
 
+#[derive(Debug)]
+struct Token {
+    kind: TokenKind,
+    text: String,
+    number: i64,
+}
+
+impl Token {
+    fn with_text(kind: TokenKind, text: String) -> Self {
+        Token {
+            kind,
+            text,
+            number: 0,
+        }
+    }
+
+    fn with_number(kind: TokenKind, number: i64) -> Self {
+        Token {
+            kind,
+            text: number.to_string(),
+            number,
+        }
+    }
+}
+
 struct Lexer {
     source: String,
     cursor: usize,
@@ -40,17 +64,17 @@ impl Iterator for Lexer {
     type Item = Token;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let mut current = String::new();
+        let mut text = String::new();
 
         while self.cursor < self.source.len() {
             let mut ch: char = self.source.chars().nth(self.cursor).unwrap();
 
             if ch.is_whitespace() {
-                if !current.is_empty() {
-                    if let Ok(number) = current.parse::<i64>() {
-                        return Some(Token::Number(number));
+                if !text.is_empty() {
+                    if let Ok(number) = text.parse::<i64>() {
+                        return Some(Token::with_number(TokenKind::Number, number));
                     } else {
-                        return Some(Token::Word(current));
+                        return Some(Token::with_text(TokenKind::Word, text));
                     }
                 }
                 self.cursor += 1;
@@ -58,32 +82,32 @@ impl Iterator for Lexer {
             }
 
             if ch.is_alphanumeric() || ch == '_' {
-                current.push(ch);
+                text.push(ch);
             } else {
-                if !current.is_empty() {
-                    if let Ok(number) = current.parse::<i64>() {
-                        return Some(Token::Number(number));
+                if !text.is_empty() {
+                    if let Ok(number) = text.parse::<i64>() {
+                        return Some(Token::with_number(TokenKind::Number, number));
                     } else {
-                        return Some(Token::Word(current));
+                        return Some(Token::with_text(TokenKind::Word, text));
                     }
                 }
 
                 self.cursor += 1;
                 match ch {
-                    '(' => return Some(Token::OpenParen),
-                    ')' => return Some(Token::CloseParen),
-                    '{' => return Some(Token::OpenCurly),
-                    '}' => return Some(Token::CloseCurly),
-                    ';' => return Some(Token::Semicolon),
-                    ':' => return Some(Token::Colon),
-                    ',' => return Some(Token::Comma),
-                    '+' => return Some(Token::Plus),
-                    '-' => return Some(Token::Minus),
-                    '*' => return Some(Token::Asterisk),
-                    '/' => return Some(Token::Slash),
-                    '%' => return Some(Token::Modulo),
-                    '^' => return Some(Token::Exponent),
-                    '.' => return Some(Token::Dot),
+                    '(' => return Some(Token::with_text(TokenKind::OpenParen, text)),
+                    ')' => return Some(Token::with_text(TokenKind::CloseParen, text)),
+                    '{' => return Some(Token::with_text(TokenKind::OpenCurly, text)),
+                    '}' => return Some(Token::with_text(TokenKind::CloseCurly, text)),
+                    ';' => return Some(Token::with_text(TokenKind::Semicolon, text)),
+                    ':' => return Some(Token::with_text(TokenKind::Colon, text)),
+                    ',' => return Some(Token::with_text(TokenKind::Comma, text)),
+                    '.' => return Some(Token::with_text(TokenKind::Dot, text)),
+                    '+' => return Some(Token::with_text(TokenKind::Plus, text)),
+                    '-' => return Some(Token::with_text(TokenKind::Minus, text)),
+                    '*' => return Some(Token::with_text(TokenKind::Asterisk, text)),
+                    '/' => return Some(Token::with_text(TokenKind::Slash, text)),
+                    '%' => return Some(Token::with_text(TokenKind::Modulo, text)),
+                    '^' => return Some(Token::with_text(TokenKind::Exponent, text)),
                     '"' => {
                         let mut content = String::new();
 
@@ -91,7 +115,7 @@ impl Iterator for Lexer {
                             ch = self.source.chars().nth(self.cursor).unwrap();
                             match ch {
                                 '"' => {
-                                    return Some(Token::Str(content));
+                                    return Some(Token::with_text(TokenKind::String, content));
                                 }
                                 _ => {
                                     content.push(ch);
