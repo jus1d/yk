@@ -1,93 +1,71 @@
+use std::iter::Peekable;
+
 #[derive(Clone)]
-pub struct Lexer {
-    source: String,
-    cursor: usize,
+pub struct Lexer<Chars: Iterator<Item = char> + Clone> {
+    chars: Peekable<Chars>,
 }
 
-impl Lexer {
-    pub fn new(source: String) -> Self {
-        Lexer { source, cursor: 0 }
+impl<Chars: Iterator<Item = char> + Clone> Lexer<Chars> {
+    pub fn new(chars: Chars) -> Self {
+        Lexer {
+            chars: chars.clone().peekable(),
+        }
     }
 }
 
-impl Iterator for Lexer {
+impl<Chars: Iterator<Item = char> + Clone> Iterator for Lexer<Chars> {
     type Item = Token;
 
-    fn next(&mut self) -> Option<Self::Item> {
+    fn next(&mut self) -> Option<Token> {
+        while let Some(_) = self.chars.next_if(|ch| ch.is_whitespace()) {}
+
         let mut text = String::new();
 
-        while self.cursor < self.source.len() {
-            let mut ch: char = self.source.chars().nth(self.cursor).unwrap();
-
-            if ch.is_whitespace() {
-                if !text.is_empty() {
-                    if let Ok(number) = text.parse::<i64>() {
-                        return Some(Token::with_number(TokenKind::Number, number));
-                    } else {
-                        return Some(Token::with_text(TokenKind::Word, text));
-                    }
-                }
-                self.cursor += 1;
-                continue;
-            }
-
-            if ch.is_alphanumeric() || ch == '_' {
-                text.push(ch);
-            } else {
-                if !text.is_empty() {
-                    if let Ok(number) = text.parse::<i64>() {
-                        return Some(Token::with_number(TokenKind::Number, number));
-                    } else {
-                        return Some(Token::with_text(TokenKind::Word, text));
-                    }
-                }
-
-                self.cursor += 1;
-                match ch {
-                    '(' => return Some(Token::with_text(TokenKind::OpenParen, text)),
-                    ')' => return Some(Token::with_text(TokenKind::CloseParen, text)),
-                    '{' => return Some(Token::with_text(TokenKind::OpenCurly, text)),
-                    '}' => return Some(Token::with_text(TokenKind::CloseCurly, text)),
-                    ';' => return Some(Token::with_text(TokenKind::Semicolon, text)),
-                    ':' => return Some(Token::with_text(TokenKind::Colon, text)),
-                    ',' => return Some(Token::with_text(TokenKind::Comma, text)),
-                    '.' => return Some(Token::with_text(TokenKind::Dot, text)),
-                    '+' => return Some(Token::with_text(TokenKind::Plus, text)),
-                    '-' => return Some(Token::with_text(TokenKind::Minus, text)),
-                    '*' => return Some(Token::with_text(TokenKind::Star, text)),
-                    '/' => return Some(Token::with_text(TokenKind::Slash, text)),
-                    '"' => {
-                        let mut content = String::new();
-
-                        while self.cursor < self.source.len() {
-                            ch = self.source.chars().nth(self.cursor).unwrap();
-                            match ch {
-                                '"' => {
-                                    self.cursor += 1;
-                                    return Some(Token::with_text(TokenKind::String, content));
-                                }
-                                _ => {
-                                    content.push(ch);
-                                }
-                            }
-                            self.cursor += 1;
-                        }
-                    }
-                    _ => unreachable!(),
-                }
-            }
-            self.cursor += 1;
+        if self.chars.peek().is_none() {
+            return None;
         }
 
-        if !text.is_empty() {
+        let ch = self.chars.next().unwrap();
+
+        if ch == '"' {
+            while let Some(ch) = self.chars.next() {
+                match ch {
+                    '\\' => todo!("Escaping strings is not supported"),
+                    '"' => return Some(Token::with_text(TokenKind::String, text)),
+                    _ => text.push(ch),
+                }
+            }
+
+            todo!("Report unclosed string literal error");
+        }
+
+        text.push(ch);
+
+        if ch.is_alphanumeric() || ch == '_' {
+            while let Some(ch) = self.chars.next_if(|ch| ch.is_alphanumeric() || *ch == '_') {
+                text.push(ch);
+            }
+
             if let Ok(number) = text.parse::<i64>() {
                 return Some(Token::with_number(TokenKind::Number, number));
-            } else {
-                return Some(Token::with_text(TokenKind::Word, text));
             }
+
+            return Some(Token::with_text(TokenKind::Word, text));
         }
 
-        return None;
+        match ch {
+            '(' => return Some(Token::with_text(TokenKind::OpenParen, text)),
+            ')' => return Some(Token::with_text(TokenKind::CloseParen, text)),
+            '{' => return Some(Token::with_text(TokenKind::OpenCurly, text)),
+            '}' => return Some(Token::with_text(TokenKind::CloseCurly, text)),
+            ';' => return Some(Token::with_text(TokenKind::Semicolon, text)),
+            ',' => return Some(Token::with_text(TokenKind::Comma, text)),
+            '+' => return Some(Token::with_text(TokenKind::Plus, text)),
+            '-' => return Some(Token::with_text(TokenKind::Minus, text)),
+            '*' => return Some(Token::with_text(TokenKind::Star, text)),
+            '/' => return Some(Token::with_text(TokenKind::Slash, text)),
+            _ => todo!("Unexpected token: '{}'", ch),
+        }
     }
 }
 
@@ -103,9 +81,7 @@ pub enum TokenKind {
     CloseCurly,
 
     Semicolon,
-    Colon,
     Comma,
-    Dot,
 
     Plus,
     Minus,
