@@ -10,6 +10,7 @@ macro_rules! exit {
 }
 
 #[allow(dead_code)]
+#[derive(Debug)]
 pub struct Program {
     functions: Vec<Function>,
 }
@@ -71,32 +72,33 @@ where
         }
     }
 
+    pub fn parse_program(&mut self) -> Program {
+        let mut program = Program { functions: vec![] };
+
+        while let Some(function) = self.parse_fn() {
+            program.functions.push(function);
+        }
+
+        return program;
+    }
+
     pub fn parse_fn(&mut self) -> Option<Function> {
-        //fn
-        let kw = self.tokens.next().unwrap();
+        let kw = self.tokens.next()?;
         if kw.kind != TokenKind::Word || kw.text != "fn" {
             todo!("Implement error handling for invalid function definition");
         }
 
-        // name
         let name = self.tokens.next().unwrap();
         if name.kind != TokenKind::Word {
             todo!("Implement error handling for invalid function name");
         }
 
-        // (
-        let oparen = self.tokens.next().unwrap();
-        if oparen.kind != TokenKind::OpenParen {
-            todo!("Implement error handling for invalid function definition");
-        }
+        self.expect(TokenKind::OpenParen);
 
-        // parse args
+        // TODO: parse args
+        while let Some(_) = self.tokens.next_if(|t| t.kind != TokenKind::CloseParen) {}
 
-        // )
-        let cparen = self.tokens.next().unwrap();
-        if cparen.kind != TokenKind::CloseParen {
-            todo!("Implement error handling for invalid function definition");
-        }
+        self.expect(TokenKind::CloseParen);
 
         let body = self.parse_block()?;
 

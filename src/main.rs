@@ -10,6 +10,6 @@ fn main() {
     let lexer = lexer::Lexer::new(source.chars(), filename.to_string());
     let mut parser = parser::Parser::from_iter(lexer);
 
-    let function = parser.parse_fn();
-    println!("{:?}", function);
+    let program = parser.parse_program();
+    println!("{:?}", program);
 }
