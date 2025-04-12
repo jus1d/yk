@@ -1,21 +1,73 @@
-use std::{fs, iter::Peekable};
+use std::iter::Peekable;
 
+#[allow(dead_code)]
 struct Program {
     functions: Vec<Function>,
 }
 
+#[allow(dead_code)]
 struct Function {
     name: String,
     body: Vec<Statement>,
 }
 
+#[allow(dead_code)]
+#[derive(Debug)]
 enum Statement {
     Funcall { name: String, args: Vec<Expr> },
     Ret { value: Option<Expr> },
 }
 
+impl Statement {
+    fn parse(lexer: &mut Peekable<Lexer>) -> Self {
+        match lexer.next() {
+            Some(token) => match token.kind {
+                TokenKind::Word => match token.text.as_str() {
+                    "ret" => {
+                        let value = Expr::parse(lexer);
+                        if lexer.next_if(|t| t.kind == TokenKind::Semicolon).is_none() {
+                            todo!("Missing semicolon after return statement");
+                        }
+
+                        Statement::Ret { value: Some(value) }
+                    }
+                    _ => {
+                        let name = token.text;
+                        let mut args = Vec::new();
+
+                        if lexer.next_if(|t| t.kind == TokenKind::OpenParen).is_some() {
+                            if lexer.next_if(|t| t.kind == TokenKind::CloseParen).is_some() {
+                                // empty argument list
+                            } else {
+                                args.push(Expr::parse(lexer));
+
+                                while lexer.next_if(|t| t.kind == TokenKind::Comma).is_some() {
+                                    args.push(Expr::parse(lexer));
+                                }
+                            }
+
+                            if lexer.next_if(|t| t.kind == TokenKind::CloseParen).is_none() {
+                                todo!("Missing close paren after arguments list");
+                            }
+                        }
+
+                        if lexer.next_if(|t| t.kind == TokenKind::Semicolon).is_none() {
+                            todo!("Missing semicolon after funcall statement");
+                        }
+
+                        Statement::Funcall { name, args }
+                    }
+                },
+                _ => todo!(),
+            },
+            None => todo!(),
+        }
+    }
+}
+
 // TODO: Move number and string to literal
 #[derive(Debug)]
+#[allow(dead_code)]
 enum Expr {
     Variable(String),
     Number(i64),
@@ -33,9 +85,9 @@ enum Expr {
 
 impl Expr {
     fn parse(lexer: &mut Peekable<Lexer>) -> Self {
-        let current = lexer.next().unwrap();
+        let primary = lexer.next().unwrap();
 
-        match current.kind {
+        match primary.kind {
             TokenKind::Word => match lexer.peek() {
                 Some(token) => {
                     if token.kind == TokenKind::OpenParen {
@@ -59,18 +111,71 @@ impl Expr {
                         }
 
                         return Expr::Funcall {
-                            name: current.text,
+                            name: primary.text,
                             args,
                         };
                     } else {
-                        return Expr::Variable(current.text);
+                        if let Some(op_kind) = lexer.peek().map(|t| t.kind) {
+                            match op_kind {
+                                TokenKind::Plus
+                                | TokenKind::Minus
+                                | TokenKind::Star
+                                | TokenKind::Slash => {
+                                    lexer.next();
+                                    let rhs = Box::new(Expr::parse(lexer));
+
+                                    let op = match op_kind {
+                                        TokenKind::Plus => BinaryOp::Add,
+                                        TokenKind::Minus => BinaryOp::Sub,
+                                        TokenKind::Star => BinaryOp::Mul,
+                                        TokenKind::Slash => BinaryOp::Div,
+                                        _ => unreachable!(),
+                                    };
+
+                                    return Expr::Binary {
+                                        op,
+                                        lhs: Box::new(Expr::Variable(primary.text)),
+                                        rhs,
+                                    };
+                                }
+                                _ => return Expr::Variable(primary.text),
+                            }
+                        } else {
+                            todo!("Unexpected end of input");
+                        }
                     }
                 }
-                _ => return Expr::Variable(current.text),
+                _ => return Expr::Variable(primary.text),
             },
-            TokenKind::Number => Expr::Number(current.number),
-            TokenKind::String => Expr::String(current.text),
-            _ => panic!("Unexpected token"),
+            TokenKind::Number => {
+                if let Some(op_kind) = lexer.peek().map(|t| t.kind) {
+                    match op_kind {
+                        TokenKind::Plus | TokenKind::Minus | TokenKind::Star | TokenKind::Slash => {
+                            lexer.next();
+                            let rhs = Box::new(Expr::parse(lexer));
+
+                            let op = match op_kind {
+                                TokenKind::Plus => BinaryOp::Add,
+                                TokenKind::Minus => BinaryOp::Sub,
+                                TokenKind::Star => BinaryOp::Mul,
+                                TokenKind::Slash => BinaryOp::Div,
+                                _ => unreachable!(),
+                            };
+
+                            return Expr::Binary {
+                                op,
+                                lhs: Box::new(Expr::Number(primary.number)),
+                                rhs,
+                            };
+                        }
+                        _ => return Expr::Variable(primary.text),
+                    }
+                } else {
+                    todo!("Unexpected end of input");
+                }
+            }
+            TokenKind::String => Expr::String(primary.text),
+            _ => panic!("Unexpected token: {:?}", primary.kind),
         }
     }
 }
@@ -81,11 +186,9 @@ enum BinaryOp {
     Sub,
     Mul,
     Div,
-    Mod,
-    Pow,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 enum TokenKind {
     Word,
     Number,
@@ -103,10 +206,8 @@ enum TokenKind {
 
     Plus,
     Minus,
-    Asterisk,
+    Star,
     Slash,
-    Modulo,
-    Exponent,
 }
 
 #[derive(Debug)]
@@ -190,10 +291,8 @@ impl Iterator for Lexer {
                     '.' => return Some(Token::with_text(TokenKind::Dot, text)),
                     '+' => return Some(Token::with_text(TokenKind::Plus, text)),
                     '-' => return Some(Token::with_text(TokenKind::Minus, text)),
-                    '*' => return Some(Token::with_text(TokenKind::Asterisk, text)),
+                    '*' => return Some(Token::with_text(TokenKind::Star, text)),
                     '/' => return Some(Token::with_text(TokenKind::Slash, text)),
-                    '%' => return Some(Token::with_text(TokenKind::Modulo, text)),
-                    '^' => return Some(Token::with_text(TokenKind::Exponent, text)),
                     '"' => {
                         let mut content = String::new();
 
@@ -230,19 +329,12 @@ impl Iterator for Lexer {
 }
 
 fn main() {
-    // let path = "main.w";
-    // let source = fs::read_to_string(path).unwrap();
+    let source = String::from("println(x, \"hui\", 2 * 2);");
 
-    let source = String::from("println(\"Hello, world!\")");
+    let lexer = Lexer::new(source.clone());
+    let stmt = Statement::parse(&mut lexer.peekable());
 
-    let mut tokens = Lexer::new(source.clone());
-    for token in tokens.clone() {
-        println!("{:?}", token);
-    }
-
-    let expr = Expr::parse(&mut tokens.peekable());
-
-    println!("{:?}", expr);
+    println!("{:?}", stmt);
 
     // let program = Program {
     //     functions: vec![Function {
