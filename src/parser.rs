@@ -217,13 +217,10 @@ where
     }
 
     fn parse_binary_op(&mut self, lhs: Expr) -> Expr {
-        if let Some(op_kind) = self.tokens.peek().map(|t| t.kind) {
-            match op_kind {
+        match self.tokens.next() {
+            Some(token) => match token.kind {
                 TokenKind::Plus | TokenKind::Minus | TokenKind::Star | TokenKind::Slash => {
-                    self.tokens.next();
-
-                    let rhs = Box::new(self.parse_expr().unwrap());
-                    let op = match op_kind {
+                    let op = match token.kind {
                         TokenKind::Plus => BinaryOp::Add,
                         TokenKind::Minus => BinaryOp::Sub,
                         TokenKind::Star => BinaryOp::Mul,
@@ -234,13 +231,14 @@ where
                     return Expr::Binary {
                         op,
                         lhs: Box::new(lhs),
-                        rhs,
+                        rhs: Box::new(self.parse_expr().unwrap()),
                     };
                 }
-                _ => unreachable!(),
-            }
-        } else {
-            exit!("error: unexpected EOF");
+                _ => {
+                    exit!("{}: error: unexpected token: {:?}", token.loc, token.kind)
+                }
+            },
+            None => exit!("error: unexpected EOF"),
         }
     }
 
