@@ -8,6 +8,7 @@ pub struct Program {
 }
 
 #[allow(dead_code)]
+#[derive(Debug)]
 pub struct Function {
     name: String,
     body: Vec<Statement>,
@@ -61,6 +62,66 @@ where
         Parser {
             tokens: tokens.peekable(),
         }
+    }
+
+    pub fn parse_fn(&mut self) -> Option<Function> {
+        //fn
+        let kw = self.tokens.next().unwrap();
+        if kw.kind != TokenKind::Word || kw.text != "fn" {
+            todo!("Implement error handling for invalid function definition");
+        }
+
+        // name
+        let name = self.tokens.next().unwrap();
+        if name.kind != TokenKind::Word {
+            todo!("Implement error handling for invalid function name");
+        }
+
+        // (
+        let oparen = self.tokens.next().unwrap();
+        if oparen.kind != TokenKind::OpenParen {
+            todo!("Implement error handling for invalid function definition");
+        }
+
+        // parse args
+
+        // )
+        let cparen = self.tokens.next().unwrap();
+        if cparen.kind != TokenKind::CloseParen {
+            todo!("Implement error handling for invalid function definition");
+        }
+
+        let body = self.parse_block()?;
+
+        Some(Function {
+            name: name.text,
+            body,
+        })
+    }
+
+    pub fn parse_block(&mut self) -> Option<Vec<Statement>> {
+        let lbrace = self.tokens.next().unwrap();
+        if lbrace.kind != TokenKind::OpenCurly {
+            todo!("Implement error handling for invalid block");
+        }
+
+        let mut statements = Vec::new();
+
+        while let Some(stmt) = self.parse_stmt() {
+            statements.push(stmt);
+            if let Some(token) = self.tokens.peek() {
+                if token.kind == TokenKind::CloseCurly {
+                    break;
+                }
+            }
+        }
+
+        let rbrace = self.tokens.next().unwrap();
+        if rbrace.kind != TokenKind::CloseCurly {
+            todo!("Implement error handling for invalid block");
+        }
+
+        Some(statements)
     }
 
     pub fn parse_expr(&mut self) -> Option<Expr> {

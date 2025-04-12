@@ -8,11 +8,8 @@ fn main() {
     let source = fs::read_to_string(filename).expect("Failed to read file");
 
     let lexer = lexer::Lexer::new(source.chars(), filename.to_string());
-    for token in lexer {
-        println!("{:?}", token);
-    }
-    // let mut parser = parser::Parser::from_iter(lexer);
+    let mut parser = parser::Parser::from_iter(lexer);
 
-    // let stmt = parser.parse_stmt();
-    // println!("{:?}", stmt);
+    let function = parser.parse_fn();
+    println!("{:?}", function);
 }
