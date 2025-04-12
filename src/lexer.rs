@@ -7,6 +7,77 @@ macro_rules! exit {
     }};
 }
 
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum TokenKind {
+    Word,
+    Number,
+    String,
+
+    OpenParen,
+    CloseParen,
+    OpenCurly,
+    CloseCurly,
+
+    Semicolon,
+    Comma,
+
+    Plus,
+    Minus,
+    Star,
+    Slash,
+}
+
+#[derive(Debug)]
+pub struct Token {
+    pub kind: TokenKind,
+    pub text: String,
+    pub number: i64,
+    pub loc: Loc,
+}
+
+impl Token {
+    fn with_text(kind: TokenKind, text: String, loc: Loc) -> Self {
+        Token {
+            kind,
+            text,
+            number: 0,
+            loc,
+        }
+    }
+
+    fn with_number(kind: TokenKind, number: i64, loc: Loc) -> Self {
+        Token {
+            kind,
+            text: number.to_string(),
+            number,
+            loc,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct Loc {
+    filename: String,
+    line: usize,
+    col: usize,
+}
+
+impl Loc {
+    fn new(filename: String, line: usize, col: usize) -> Self {
+        Loc {
+            filename,
+            line,
+            col,
+        }
+    }
+}
+
+impl Display for Loc {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}:{}:{}", self.filename, self.line + 1, self.col + 1)
+    }
+}
+
 #[derive(Clone)]
 pub struct Lexer<Chars: Iterator<Item = char> + Clone> {
     chars: Peekable<Chars>,
@@ -95,76 +166,5 @@ impl<Chars: Iterator<Item = char> + Clone> Iterator for Lexer<Chars> {
             '/' => return Some(Token::with_text(TokenKind::Slash, text, loc)),
             _ => exit!("{}: error: unexpected character `{}`", loc, ch),
         }
-    }
-}
-
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub enum TokenKind {
-    Word,
-    Number,
-    String,
-
-    OpenParen,
-    CloseParen,
-    OpenCurly,
-    CloseCurly,
-
-    Semicolon,
-    Comma,
-
-    Plus,
-    Minus,
-    Star,
-    Slash,
-}
-
-#[derive(Debug)]
-pub struct Token {
-    pub kind: TokenKind,
-    pub text: String,
-    pub number: i64,
-    pub loc: Loc,
-}
-
-impl Token {
-    fn with_text(kind: TokenKind, text: String, loc: Loc) -> Self {
-        Token {
-            kind,
-            text,
-            number: 0,
-            loc,
-        }
-    }
-
-    fn with_number(kind: TokenKind, number: i64, loc: Loc) -> Self {
-        Token {
-            kind,
-            text: number.to_string(),
-            number,
-            loc,
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct Loc {
-    filename: String,
-    line: usize,
-    col: usize,
-}
-
-impl Loc {
-    fn new(filename: String, line: usize, col: usize) -> Self {
-        Loc {
-            filename,
-            line,
-            col,
-        }
-    }
-}
-
-impl Display for Loc {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}:{}:{}", self.filename, self.line + 1, self.col + 1)
     }
 }

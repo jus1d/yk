@@ -2,6 +2,13 @@ use crate::lexer::{Token, TokenKind};
 
 use std::iter::Peekable;
 
+macro_rules! exit {
+    ($($arg:tt)*) => {{
+        eprintln!($($arg)*);
+        std::process::exit(1);
+    }};
+}
+
 #[allow(dead_code)]
 pub struct Program {
     functions: Vec<Function>,
@@ -125,110 +132,115 @@ where
     }
 
     pub fn parse_expr(&mut self) -> Option<Expr> {
-        let primary = self.tokens.next().unwrap();
+        if self.tokens.peek().is_none() {
+            exit!("error: unexpected EOF");
+        }
 
-        match primary.kind {
-            TokenKind::Word => match self.tokens.peek() {
-                Some(token) => {
-                    if token.kind == TokenKind::OpenParen {
-                        // consume open paren
-                        self.tokens.next();
+        let primary = self.parse_primary_expr();
 
-                        let mut args = Vec::new();
+        if self.is_operator() {
+            return Some(self.parse_binary_op(primary));
+        }
 
-                        if self
-                            .tokens
-                            .next_if(|t| t.kind == TokenKind::CloseParen)
-                            .is_some()
-                        {
-                            // consume close paren
-                            self.tokens.next();
-                        } else {
-                            args.push(self.parse_expr().unwrap());
+        return Some(primary);
+    }
 
-                            while self
-                                .tokens
-                                .next_if(|t| t.kind == TokenKind::Comma)
-                                .is_some()
-                            {
+    fn parse_primary_expr(&mut self) -> Expr {
+        if let Some(token) = self.tokens.next() {
+            match token.kind {
+                TokenKind::Number => return Expr::Number(token.number),
+                TokenKind::String => return Expr::String(token.text),
+                TokenKind::Word => {
+                    if self.tokens.peek().is_none() {
+                        exit!("error: unexpected EOF");
+                    }
+
+                    let next_token = self.tokens.peek().unwrap();
+                    match next_token.kind {
+                        TokenKind::OpenParen => {
+                            self.expect(TokenKind::OpenParen);
+
+                            let mut args = Vec::new();
+
+                            if self.tokens.peek().is_none() {
+                                exit!("error: unexpected EOF");
+                            }
+
+                            if self.tokens.peek().unwrap().kind == TokenKind::CloseParen {
+                                self.tokens.next();
+                            } else {
                                 args.push(self.parse_expr().unwrap());
-                            }
-                        }
 
-                        if self
-                            .tokens
-                            .next_if(|t| t.kind == TokenKind::CloseParen)
-                            .is_none()
-                        {
-                            todo!("Expected ')' after function arguments");
-                        }
-
-                        return Some(Expr::Funcall {
-                            name: primary.text,
-                            args,
-                        });
-                    } else {
-                        if let Some(op_kind) = self.tokens.peek().map(|t| t.kind) {
-                            match op_kind {
-                                TokenKind::Plus
-                                | TokenKind::Minus
-                                | TokenKind::Star
-                                | TokenKind::Slash => {
-                                    self.tokens.next();
-                                    let rhs = Box::new(self.parse_expr().unwrap());
-
-                                    let op = match op_kind {
-                                        TokenKind::Plus => BinaryOp::Add,
-                                        TokenKind::Minus => BinaryOp::Sub,
-                                        TokenKind::Star => BinaryOp::Mul,
-                                        TokenKind::Slash => BinaryOp::Div,
-                                        _ => unreachable!(),
-                                    };
-
-                                    return Some(Expr::Binary {
-                                        op,
-                                        lhs: Box::new(Expr::Variable(primary.text)),
-                                        rhs,
-                                    });
+                                while self
+                                    .tokens
+                                    .next_if(|t| t.kind == TokenKind::Comma)
+                                    .is_some()
+                                {
+                                    args.push(self.parse_expr().unwrap());
                                 }
-                                _ => return Some(Expr::Variable(primary.text)),
+
+                                self.expect(TokenKind::CloseParen);
                             }
-                        } else {
-                            todo!("Unexpected end of input");
-                        }
-                    }
-                }
-                _ => return Some(Expr::Variable(primary.text)),
-            },
-            TokenKind::Number => {
-                if let Some(op_kind) = self.tokens.peek().map(|t| t.kind) {
-                    match op_kind {
-                        TokenKind::Plus | TokenKind::Minus | TokenKind::Star | TokenKind::Slash => {
-                            self.tokens.next();
-                            let rhs = Box::new(self.parse_expr().unwrap());
 
-                            let op = match op_kind {
-                                TokenKind::Plus => BinaryOp::Add,
-                                TokenKind::Minus => BinaryOp::Sub,
-                                TokenKind::Star => BinaryOp::Mul,
-                                TokenKind::Slash => BinaryOp::Div,
-                                _ => unreachable!(),
+                            return Expr::Funcall {
+                                name: token.text,
+                                args,
                             };
-
-                            return Some(Expr::Binary {
-                                op,
-                                lhs: Box::new(Expr::Number(primary.number)),
-                                rhs,
-                            });
                         }
-                        _ => return Some(Expr::Number(primary.number)),
+                        _ => return Expr::Variable(token.text),
                     }
-                } else {
-                    todo!("Unexpected end of input");
                 }
+                TokenKind::OpenParen => {
+                    exit!(
+                        "{}: error: grouping expression are not supported yet",
+                        token.loc,
+                    )
+                }
+                _ => exit!("{}: error: unexpected token: {:?}", token.loc, token.kind),
             }
-            TokenKind::String => Some(Expr::String(primary.text)),
-            _ => panic!("Unexpected token: {:?}", primary.kind),
+        } else {
+            exit!("error: unexpected EOF");
+        }
+    }
+
+    fn is_operator(&mut self) -> bool {
+        if let Some(token) = self.tokens.peek() {
+            match token.kind {
+                TokenKind::Plus | TokenKind::Minus | TokenKind::Star | TokenKind::Slash => {
+                    return true
+                }
+                _ => return false,
+            }
+        }
+
+        return false;
+    }
+
+    fn parse_binary_op(&mut self, lhs: Expr) -> Expr {
+        if let Some(op_kind) = self.tokens.peek().map(|t| t.kind) {
+            match op_kind {
+                TokenKind::Plus | TokenKind::Minus | TokenKind::Star | TokenKind::Slash => {
+                    self.tokens.next();
+
+                    let rhs = Box::new(self.parse_expr().unwrap());
+                    let op = match op_kind {
+                        TokenKind::Plus => BinaryOp::Add,
+                        TokenKind::Minus => BinaryOp::Sub,
+                        TokenKind::Star => BinaryOp::Mul,
+                        TokenKind::Slash => BinaryOp::Div,
+                        _ => unreachable!(),
+                    };
+
+                    return Expr::Binary {
+                        op,
+                        lhs: Box::new(lhs),
+                        rhs,
+                    };
+                }
+                _ => unreachable!(),
+            }
+        } else {
+            exit!("error: unexpected EOF");
         }
     }
 
@@ -299,6 +311,22 @@ where
                 _ => todo!(),
             },
             None => todo!(),
+        }
+    }
+
+    fn expect(&mut self, kind: TokenKind) {
+        match self.tokens.next() {
+            None => exit!("error: expected token of kind {:?}, got EOF", kind),
+            Some(token) => {
+                if token.kind != kind {
+                    exit!(
+                        "{}: error: expected token of kind {:?}, got {:?}",
+                        token.loc,
+                        kind,
+                        token.kind
+                    )
+                };
+            }
         }
     }
 }
