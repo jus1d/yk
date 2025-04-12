@@ -160,7 +160,7 @@ where
                                 rhs,
                             });
                         }
-                        _ => return Some(Expr::Variable(primary.text)),
+                        _ => return Some(Expr::Number(primary.number)),
                     }
                 } else {
                     todo!("Unexpected end of input");
