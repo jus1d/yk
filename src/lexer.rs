@@ -1,14 +1,22 @@
-use std::iter::Peekable;
+use std::{fmt::Display, iter::Peekable};
 
 #[derive(Clone)]
 pub struct Lexer<Chars: Iterator<Item = char> + Clone> {
     chars: Peekable<Chars>,
+    filename: String,
+    cur: usize,
+    line: usize,
+    bol: usize,
 }
 
 impl<Chars: Iterator<Item = char> + Clone> Lexer<Chars> {
-    pub fn new(chars: Chars) -> Self {
+    pub fn new(chars: Chars, filename: String) -> Self {
         Lexer {
             chars: chars.clone().peekable(),
+            filename,
+            cur: 0,
+            line: 0,
+            bol: 0,
         }
     }
 }
@@ -17,21 +25,34 @@ impl<Chars: Iterator<Item = char> + Clone> Iterator for Lexer<Chars> {
     type Item = Token;
 
     fn next(&mut self) -> Option<Token> {
-        while let Some(_) = self.chars.next_if(|ch| ch.is_whitespace()) {}
+        while let Some(_) = self.chars.next_if(|ch| {
+            if *ch == '\n' {
+                self.line += 1;
+                self.bol = self.cur + 1;
+            }
 
-        let mut text = String::new();
+            ch.is_whitespace()
+        }) {
+            self.cur += 1;
+        }
 
         if self.chars.peek().is_none() {
             return None;
         }
 
+        let mut text = String::new();
+
+        let loc = Loc::new(self.filename.clone(), self.line, self.cur - self.bol);
+
         let ch = self.chars.next().unwrap();
+        self.cur += 1;
 
         if ch == '"' {
             while let Some(ch) = self.chars.next() {
+                self.cur += 1;
                 match ch {
                     '\\' => todo!("Escaping strings is not supported"),
-                    '"' => return Some(Token::with_text(TokenKind::String, text)),
+                    '"' => return Some(Token::with_text(TokenKind::String, text, loc)),
                     _ => text.push(ch),
                 }
             }
@@ -43,27 +64,28 @@ impl<Chars: Iterator<Item = char> + Clone> Iterator for Lexer<Chars> {
 
         if ch.is_alphanumeric() || ch == '_' {
             while let Some(ch) = self.chars.next_if(|ch| ch.is_alphanumeric() || *ch == '_') {
+                self.cur += 1;
                 text.push(ch);
             }
 
             if let Ok(number) = text.parse::<i64>() {
-                return Some(Token::with_number(TokenKind::Number, number));
+                return Some(Token::with_number(TokenKind::Number, number, loc));
             }
 
-            return Some(Token::with_text(TokenKind::Word, text));
+            return Some(Token::with_text(TokenKind::Word, text, loc));
         }
 
         match ch {
-            '(' => return Some(Token::with_text(TokenKind::OpenParen, text)),
-            ')' => return Some(Token::with_text(TokenKind::CloseParen, text)),
-            '{' => return Some(Token::with_text(TokenKind::OpenCurly, text)),
-            '}' => return Some(Token::with_text(TokenKind::CloseCurly, text)),
-            ';' => return Some(Token::with_text(TokenKind::Semicolon, text)),
-            ',' => return Some(Token::with_text(TokenKind::Comma, text)),
-            '+' => return Some(Token::with_text(TokenKind::Plus, text)),
-            '-' => return Some(Token::with_text(TokenKind::Minus, text)),
-            '*' => return Some(Token::with_text(TokenKind::Star, text)),
-            '/' => return Some(Token::with_text(TokenKind::Slash, text)),
+            '(' => return Some(Token::with_text(TokenKind::OpenParen, text, loc)),
+            ')' => return Some(Token::with_text(TokenKind::CloseParen, text, loc)),
+            '{' => return Some(Token::with_text(TokenKind::OpenCurly, text, loc)),
+            '}' => return Some(Token::with_text(TokenKind::CloseCurly, text, loc)),
+            ';' => return Some(Token::with_text(TokenKind::Semicolon, text, loc)),
+            ',' => return Some(Token::with_text(TokenKind::Comma, text, loc)),
+            '+' => return Some(Token::with_text(TokenKind::Plus, text, loc)),
+            '-' => return Some(Token::with_text(TokenKind::Minus, text, loc)),
+            '*' => return Some(Token::with_text(TokenKind::Star, text, loc)),
+            '/' => return Some(Token::with_text(TokenKind::Slash, text, loc)),
             _ => todo!("Unexpected token: '{}'", ch),
         }
     }
@@ -94,22 +116,48 @@ pub struct Token {
     pub kind: TokenKind,
     pub text: String,
     pub number: i64,
+    pub loc: Loc,
 }
 
 impl Token {
-    fn with_text(kind: TokenKind, text: String) -> Self {
+    fn with_text(kind: TokenKind, text: String, loc: Loc) -> Self {
         Token {
             kind,
             text,
             number: 0,
+            loc,
         }
     }
 
-    fn with_number(kind: TokenKind, number: i64) -> Self {
+    fn with_number(kind: TokenKind, number: i64, loc: Loc) -> Self {
         Token {
             kind,
             text: number.to_string(),
             number,
+            loc,
         }
+    }
+}
+
+#[derive(Debug)]
+pub struct Loc {
+    filename: String,
+    line: usize,
+    col: usize,
+}
+
+impl Loc {
+    fn new(filename: String, line: usize, col: usize) -> Self {
+        Loc {
+            filename,
+            line,
+            col,
+        }
+    }
+}
+
+impl Display for Loc {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}:{}:{}", self.filename, self.line + 1, self.col + 1)
     }
 }
