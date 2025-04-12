@@ -1,12 +1,18 @@
+use std::fs;
+
 pub mod lexer;
 pub mod parser;
 
 fn main() {
-    let source = String::from("println(x, \"hui\", 2 * 2);");
+    let filename = "main.w";
+    let source = fs::read_to_string(filename).expect("Failed to read file");
 
-    let lexer = lexer::Lexer::new(source.chars(), "main.w".to_string());
-    let mut parser = parser::Parser::from_iter(lexer);
+    let lexer = lexer::Lexer::new(source.chars(), filename.to_string());
+    for token in lexer {
+        println!("{:?}", token);
+    }
+    // let mut parser = parser::Parser::from_iter(lexer);
 
-    let stmt = parser.parse_stmt();
-    println!("{:?}", stmt);
+    // let stmt = parser.parse_stmt();
+    // println!("{:?}", stmt);
 }

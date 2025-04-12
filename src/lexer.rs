@@ -1,5 +1,12 @@
 use std::{fmt::Display, iter::Peekable};
 
+macro_rules! exit {
+    ($($arg:tt)*) => {{
+        eprintln!($($arg)*);
+        std::process::exit(1);
+    }};
+}
+
 #[derive(Clone)]
 pub struct Lexer<Chars: Iterator<Item = char> + Clone> {
     chars: Peekable<Chars>,
@@ -51,13 +58,13 @@ impl<Chars: Iterator<Item = char> + Clone> Iterator for Lexer<Chars> {
             while let Some(ch) = self.chars.next() {
                 self.cur += 1;
                 match ch {
-                    '\\' => todo!("Escaping strings is not supported"),
+                    '\\' => exit!("{}: error: escaping strings is not supported yet", loc),
                     '"' => return Some(Token::with_text(TokenKind::String, text, loc)),
                     _ => text.push(ch),
                 }
             }
 
-            todo!("Report unclosed string literal error");
+            exit!("{}: error: unclosed string literal", loc);
         }
 
         text.push(ch);
@@ -86,7 +93,7 @@ impl<Chars: Iterator<Item = char> + Clone> Iterator for Lexer<Chars> {
             '-' => return Some(Token::with_text(TokenKind::Minus, text, loc)),
             '*' => return Some(Token::with_text(TokenKind::Star, text, loc)),
             '/' => return Some(Token::with_text(TokenKind::Slash, text, loc)),
-            _ => todo!("Unexpected token: '{}'", ch),
+            _ => exit!("{}: error: unexpected character `{}`", loc, ch),
         }
     }
 }
