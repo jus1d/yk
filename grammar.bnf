@@ -24,18 +24,3 @@ digit           := '0'-'9'
 number          := digit+
 string          := '"' (character | escape_seq)* '"'
 bool            := 'true' | 'false'
-
-
-
-S := fun | fun S
-fun := 'fn' ident params return block
-params := '(' params_list ')'
-params_list := param | param ',' params_list
-param := ident ':' type
-type := 'int64' | 'string'
-return := type
-block := '{' statements '}'
-statements := statement ';' | statement ';' statements
-statement := ident '=' expr | 'if' expr block | 'while' expr block | 'return' expr | ident '(' expr_list ')'
-expr_list := expr | expr ',' expr_list
-expr := ident | number | string
