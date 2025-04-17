@@ -19,5 +19,5 @@ fn main() {
     let mut parser = parser::Parser::from_iter(lexer);
 
     let program = parser.parse_program();
-    println!("{:?}", program);
+    println!("{}", program);
 }

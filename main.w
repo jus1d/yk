@@ -3,6 +3,6 @@ fn square() {
 }
 
 fn main() {
-    println("Square of x is ", square(x));
+    println("pow(x, 2) = ", square(x));
     ret 0;
 }

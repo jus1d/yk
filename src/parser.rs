@@ -1,5 +1,6 @@
 use crate::lexer::{Token, TokenKind};
 
+use std::fmt;
 use std::iter::Peekable;
 
 macro_rules! exit {
@@ -328,5 +329,92 @@ where
                 };
             }
         }
+    }
+}
+
+impl fmt::Display for Program {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for (i, function) in self.functions.iter().enumerate() {
+            write!(f, "{}", function)?;
+            if i != self.functions.len() - 1 {
+                writeln!(f, "\n")?;
+            }
+        }
+        Ok(())
+    }
+}
+
+impl fmt::Display for Function {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "fn {}() {{", self.name)?;
+        for statement in &self.body {
+            writeln!(f, "    {}", statement)?;
+        }
+        write!(f, "}}")
+    }
+}
+
+#[allow(unreachable_patterns)]
+impl fmt::Display for Statement {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Statement::Funcall { name, args } => {
+                write!(f, "{}(", name)?;
+                for (i, arg) in args.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{}", arg)?;
+                }
+                write!(f, ");")
+            }
+            Statement::Ret { value } => match value {
+                Some(value) => write!(f, "ret {};", value),
+                None => write!(f, "ret;"),
+            },
+            _ => unreachable!(),
+        }
+    }
+}
+
+#[allow(unreachable_patterns)]
+impl fmt::Display for Expr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Expr::Variable(ident) => write!(f, "{}", ident),
+            Expr::Number(value) => write!(f, "{}", value),
+            Expr::String(value) => write!(f, "\"{}\"", value),
+            Expr::Funcall { name, args } => {
+                write!(f, "{}(", name)?;
+                for (i, arg) in args.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{}", arg)?;
+                }
+                write!(f, ")")
+            }
+            Expr::Binary { op, lhs, rhs } => {
+                write!(f, "({} {} {})", lhs, op, rhs)
+            }
+            _ => unreachable!(),
+        }
+    }
+}
+
+#[allow(unreachable_patterns)]
+impl fmt::Display for BinaryOp {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                BinaryOp::Add => "+",
+                BinaryOp::Sub => "-",
+                BinaryOp::Mul => "*",
+                BinaryOp::Div => "/",
+                _ => unreachable!(),
+            }
+        )
     }
 }
