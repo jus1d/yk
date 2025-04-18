@@ -99,6 +99,14 @@ where
                     let typ = token.text.clone();
                     self.tokens.next();
                     if let Some(token) = self.tokens.next() {
+                        if token.kind != TokenKind::Word {
+                            exit!(
+                                "{}: error: expected `word`, got {:?}",
+                                token.loc,
+                                token.kind
+                            );
+                        }
+
                         return Some(Param {
                             typ,
                             name: token.text,
@@ -107,7 +115,7 @@ where
 
                     return None;
                 }
-                _ => todo!("Expected token kind `word`"),
+                other => exit!("{}: error: expected `word`, got {:?}", token.loc, other),
             },
             None => None,
         }
@@ -116,12 +124,20 @@ where
     pub fn parse_fn(&mut self) -> Option<Function> {
         let kw = self.tokens.next()?;
         if kw.kind != TokenKind::Word || kw.text != "fn" {
-            todo!("Implement error handling for invalid function definition");
+            exit!(
+                "{}: error: unexpected token. expected keyword `fn`, got {:?}",
+                kw.loc,
+                kw.kind
+            );
         }
 
         let name = self.tokens.next().unwrap();
         if name.kind != TokenKind::Word {
-            todo!("Implement error handling for invalid function name");
+            exit!(
+                "{}: error: unexpected token. expected `word`, got {:?}",
+                name.loc,
+                name.kind
+            );
         }
 
         self.expect(TokenKind::OpenParen);
@@ -163,11 +179,19 @@ where
                 TokenKind::Word => {
                     let ret_type = self.tokens.next().unwrap();
                     if ret_type.kind != TokenKind::Word {
-                        todo!("Implement error handling for invalid function name");
+                        exit!(
+                            "{}: error: expected token `word`, got {:?}",
+                            ret_type.loc,
+                            ret_type.kind
+                        );
                     }
 
                     if !is_type(ret_type.text.clone()) {
-                        todo!("Unknown type `{}`", ret_type.text);
+                        exit!(
+                            "{}: error: expected type, got {:?}",
+                            ret_type.loc,
+                            ret_type.kind
+                        );
                     }
 
                     let body = self.parse_block()?;
@@ -179,10 +203,14 @@ where
                         body,
                     });
                 }
-                _ => todo!("Expected block or return type"),
+                other => exit!(
+                    "{}: error: expected block or return type, got {:?}",
+                    token.loc,
+                    other
+                ),
             },
             None => {
-                todo!("Expected block or return type, got none");
+                exit!("error: expected block or return type, got EOF");
             }
         }
     }
@@ -190,7 +218,11 @@ where
     pub fn parse_block(&mut self) -> Option<Vec<Statement>> {
         let lbrace = self.tokens.next().unwrap();
         if lbrace.kind != TokenKind::OpenCurly {
-            todo!("Implement error handling for invalid block");
+            exit!(
+                "{}: error: expected `open curly`, got {:?}",
+                lbrace.loc,
+                lbrace.kind
+            );
         }
 
         let mut statements = Vec::new();
@@ -206,7 +238,11 @@ where
 
         let rbrace = self.tokens.next().unwrap();
         if rbrace.kind != TokenKind::CloseCurly {
-            todo!("Implement error handling for invalid block");
+            exit!(
+                "{}: error: expected `close curly`, got {:?}",
+                rbrace.loc,
+                rbrace.kind
+            );
         }
 
         Some(statements)
@@ -335,7 +371,7 @@ where
                             .next_if(|t| t.kind == TokenKind::Semicolon)
                             .is_none()
                         {
-                            todo!("Missing semicolon after return statement");
+                            exit!("{}: error: missing semicolon after return", token.loc);
                         }
 
                         return Some(Statement::Ret { value: Some(value) });
@@ -372,7 +408,7 @@ where
                                 .next_if(|t| t.kind == TokenKind::CloseParen)
                                 .is_none()
                             {
-                                todo!("Missing close paren after arguments list");
+                                exit!("error: expected `close paren` after arguments");
                             }
                         }
 
@@ -381,15 +417,19 @@ where
                             .next_if(|t| t.kind == TokenKind::Semicolon)
                             .is_none()
                         {
-                            todo!("Missing semicolon after funcall statement");
+                            exit!("error: expected `semicolon` function call");
                         }
 
                         return Some(Statement::Funcall { name, args });
                     }
                 },
-                _ => todo!(),
+                _ => exit!(
+                    "{}: error: expected `word`, got {:?}",
+                    token.loc,
+                    token.kind
+                ),
             },
-            None => todo!(),
+            None => exit!("error: expected statement, got EOF"),
         }
     }
 
