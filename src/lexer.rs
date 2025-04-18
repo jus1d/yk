@@ -1,4 +1,5 @@
-use std::{fmt::Display, iter::Peekable};
+use std::fmt;
+use std::iter::Peekable;
 
 macro_rules! exit {
     ($($arg:tt)*) => {{
@@ -25,6 +26,32 @@ pub enum TokenKind {
     Minus,
     Star,
     Slash,
+}
+
+#[allow(unreachable_patterns)]
+impl fmt::Display for TokenKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                TokenKind::Word => "`word`",
+                TokenKind::Number => "`number`",
+                TokenKind::String => "`string`",
+                TokenKind::OpenParen => "`(`",
+                TokenKind::CloseParen => "`)`",
+                TokenKind::OpenCurly => "`{`",
+                TokenKind::CloseCurly => "`}`",
+                TokenKind::Semicolon => "`;`",
+                TokenKind::Comma => "`,`",
+                TokenKind::Plus => "`+`",
+                TokenKind::Minus => "`-`",
+                TokenKind::Star => "`*`",
+                TokenKind::Slash => "`/`",
+                _ => unreachable!(),
+            }
+        )
+    }
 }
 
 #[derive(Debug)]
@@ -72,8 +99,8 @@ impl Loc {
     }
 }
 
-impl Display for Loc {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for Loc {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}:{}:{}", self.filename, self.line + 1, self.col + 1)
     }
 }
@@ -97,12 +124,8 @@ impl<Chars: Iterator<Item = char> + Clone> Lexer<Chars> {
             bol: 0,
         }
     }
-}
 
-impl<Chars: Iterator<Item = char> + Clone> Iterator for Lexer<Chars> {
-    type Item = Token;
-
-    fn next(&mut self) -> Option<Token> {
+    fn trim_whitespace(&mut self) {
         while let Some(_) = self.chars.next_if(|ch| {
             if *ch == '\n' {
                 self.line += 1;
@@ -113,6 +136,14 @@ impl<Chars: Iterator<Item = char> + Clone> Iterator for Lexer<Chars> {
         }) {
             self.cur += 1;
         }
+    }
+}
+
+impl<Chars: Iterator<Item = char> + Clone> Iterator for Lexer<Chars> {
+    type Item = Token;
+
+    fn next(&mut self) -> Option<Token> {
+        self.trim_whitespace();
 
         if self.chars.peek().is_none() {
             return None;

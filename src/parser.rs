@@ -101,8 +101,9 @@ where
                     if let Some(token) = self.tokens.next() {
                         if token.kind != TokenKind::Word {
                             exit!(
-                                "{}: error: expected `word`, got {:?}",
+                                "{}: error: expected {}, got {}",
                                 token.loc,
+                                TokenKind::Word,
                                 token.kind
                             );
                         }
@@ -115,7 +116,12 @@ where
 
                     return None;
                 }
-                other => exit!("{}: error: expected `word`, got {:?}", token.loc, other),
+                other => exit!(
+                    "{}: error: expected {}, got {}",
+                    token.loc,
+                    TokenKind::Word,
+                    other
+                ),
             },
             None => None,
         }
@@ -125,7 +131,7 @@ where
         let kw = self.tokens.next()?;
         if kw.kind != TokenKind::Word || kw.text != "fn" {
             exit!(
-                "{}: error: unexpected token. expected keyword `fn`, got {:?}",
+                "{}: error: unexpected token. expected keyword `fn`, got {}",
                 kw.loc,
                 kw.kind
             );
@@ -134,7 +140,7 @@ where
         let name = self.tokens.next().unwrap();
         if name.kind != TokenKind::Word {
             exit!(
-                "{}: error: unexpected token. expected `word`, got {:?}",
+                "{}: error: unexpected token. expected `word`, got {}",
                 name.loc,
                 name.kind
             );
@@ -180,15 +186,16 @@ where
                     let ret_type = self.tokens.next().unwrap();
                     if ret_type.kind != TokenKind::Word {
                         exit!(
-                            "{}: error: expected token `word`, got {:?}",
+                            "{}: error: expected token {}, got {}",
                             ret_type.loc,
+                            TokenKind::Word,
                             ret_type.kind
                         );
                     }
 
                     if !is_type(ret_type.text.clone()) {
                         exit!(
-                            "{}: error: expected type, got {:?}",
+                            "{}: error: expected type, got {}",
                             ret_type.loc,
                             ret_type.kind
                         );
@@ -204,7 +211,7 @@ where
                     });
                 }
                 other => exit!(
-                    "{}: error: expected block or return type, got {:?}",
+                    "{}: error: expected block or return type, got {}",
                     token.loc,
                     other
                 ),
@@ -219,8 +226,9 @@ where
         let lbrace = self.tokens.next().unwrap();
         if lbrace.kind != TokenKind::OpenCurly {
             exit!(
-                "{}: error: expected `open curly`, got {:?}",
+                "{}: error: expected {}, got {}",
                 lbrace.loc,
+                TokenKind::OpenCurly,
                 lbrace.kind
             );
         }
@@ -239,8 +247,9 @@ where
         let rbrace = self.tokens.next().unwrap();
         if rbrace.kind != TokenKind::CloseCurly {
             exit!(
-                "{}: error: expected `close curly`, got {:?}",
+                "{}: error: expected {}, got {}",
                 rbrace.loc,
+                TokenKind::CloseCurly,
                 rbrace.kind
             );
         }
