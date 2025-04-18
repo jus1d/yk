@@ -1,5 +1,5 @@
 fn square(int64 x) int64 {
-    ret x * x;
+    ret x + x;
 }
 
 fn main() int64 {

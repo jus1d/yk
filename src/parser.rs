@@ -57,7 +57,7 @@ pub enum Expr {
     },
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum BinaryOp {
     Add,
     Sub,
@@ -207,16 +207,44 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
     }
 
     pub fn parse_expr(&mut self) -> Expr {
+        self.parse_expr_prec(0)
+    }
+
+    fn parse_expr_prec(&mut self, min_prec: u8) -> Expr {
         if self.tokens.peek().is_none() {
             exit!("error: expected expression, got EOF");
         }
 
-        let primary = self.parse_primary_expr();
-        if self.is_operator() {
-            return self.parse_binary_op(primary);
+        let mut lhs = self.parse_primary_expr();
+
+        while let Some(token) = self.tokens.peek() {
+            let op = match token.kind {
+                TokenKind::Plus => Some(BinaryOp::Add),
+                TokenKind::Minus => Some(BinaryOp::Sub),
+                TokenKind::Star => Some(BinaryOp::Mul),
+                TokenKind::Slash => Some(BinaryOp::Div),
+                _ => None,
+            };
+
+            if let Some(op) = op {
+                let prec = get_op_precedence(op.clone());
+                if prec < min_prec {
+                    break;
+                }
+
+                self.tokens.next();
+                let rhs = self.parse_expr_prec(prec + 1);
+                lhs = Expr::Binary {
+                    op,
+                    lhs: Box::new(lhs),
+                    rhs: Box::new(rhs),
+                };
+            } else {
+                break;
+            }
         }
 
-        return primary;
+        lhs
     }
 
     fn parse_primary_expr(&mut self) -> Expr {
@@ -226,86 +254,39 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                 TokenKind::String => return Expr::String(token.text),
                 TokenKind::Word => {
                     if self.tokens.peek().is_none() {
-                        exit!("error: expected terminating token for expression, got EOF");
+                        return Expr::Variable(token.text);
                     }
 
                     let next_token = self.tokens.peek().unwrap();
-                    match next_token.kind {
-                        TokenKind::OpenParen => {
-                            self.expect(TokenKind::OpenParen);
+                    if next_token.kind == TokenKind::OpenParen {
+                        self.tokens.next();
+                        let mut args = Vec::new();
 
-                            let mut args = Vec::new();
-
-                            if self.tokens.peek().is_none() {
-                                exit!("error: expected expressions as arguments or {}, got EOF", TokenKind::CloseParen);
-                            }
-
-                            if self.tokens.peek().unwrap().kind == TokenKind::CloseParen {
-                                self.tokens.next();
-                            } else {
+                        if self.tokens.peek().is_some_and(|t| t.kind != TokenKind::CloseParen) {
+                            args.push(self.parse_expr());
+                            while self.tokens.next_if(|t| t.kind == TokenKind::Comma).is_some() {
                                 args.push(self.parse_expr());
-
-                                while self.tokens.next_if(|t| t.kind == TokenKind::Comma).is_some() {
-                                    args.push(self.parse_expr());
-                                }
-
-                                self.expect(TokenKind::CloseParen);
                             }
-
-                            return Expr::Funcall {
-                                name: token.text,
-                                args,
-                            };
                         }
-                        _ => return Expr::Variable(token.text),
+
+                        self.expect(TokenKind::CloseParen);
+                        return Expr::Funcall {
+                            name: token.text,
+                            args,
+                        };
+                    } else {
+                        return Expr::Variable(token.text);
                     }
                 }
                 TokenKind::OpenParen => {
-                    exit!("{}: error: grouping expression are not supported yet", token.loc)
+                    let expr = self.parse_expr();
+                    self.expect(TokenKind::CloseParen);
+                    return expr;
                 }
                 _ => exit!("{}: error: unexpected token: {:?}", token.loc, token.kind),
             }
         } else {
             exit!("error: expected expression, got EOF");
-        }
-    }
-
-    fn is_operator(&mut self) -> bool {
-        if let Some(token) = self.tokens.peek() {
-            match token.kind {
-                TokenKind::Plus | TokenKind::Minus | TokenKind::Star | TokenKind::Slash => {
-                    return true
-                }
-                _ => return false,
-            }
-        }
-
-        return false;
-    }
-
-    fn parse_binary_op(&mut self, lhs: Expr) -> Expr {
-        match self.tokens.next() {
-            Some(token) => match token.kind {
-                TokenKind::Plus | TokenKind::Minus | TokenKind::Star | TokenKind::Slash => {
-                    let op = match token.kind {
-                        TokenKind::Plus => BinaryOp::Add,
-                        TokenKind::Minus => BinaryOp::Sub,
-                        TokenKind::Star => BinaryOp::Mul,
-                        TokenKind::Slash => BinaryOp::Div,
-                        _ => unreachable!(),
-                    };
-
-                    return Expr::Binary {
-                        op,
-                        lhs: Box::new(lhs),
-                        rhs: Box::new(self.parse_expr()),
-                    };
-                }
-                _ => {
-                    exit!("{}: error: unexpected token: {:?}", token.loc, token.kind)
-                }
-            },
-            None => exit!("error: expected binary operator, got EOF"),
         }
     }
 
@@ -369,6 +350,13 @@ fn is_type(s: &str) -> bool {
     match s {
         "int64" | "string" | "void" => return true,
         _ => return false,
+    }
+}
+
+fn get_op_precedence(op: BinaryOp) -> u8 {
+    match op {
+        BinaryOp::Add | BinaryOp::Sub => 1,
+        BinaryOp::Mul | BinaryOp::Div => 2,
     }
 }
 
