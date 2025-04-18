@@ -191,8 +191,10 @@ impl<Chars: Iterator<Item = char> + Clone> Iterator for Lexer<Chars> {
             ';' => return Some(Token::with_text(TokenKind::Semicolon, text, loc)),
             ',' => return Some(Token::with_text(TokenKind::Comma, text, loc)),
             '+' => return Some(Token::with_text(TokenKind::Plus, text, loc)),
+            // TODO: parse negative integer
             '-' => return Some(Token::with_text(TokenKind::Minus, text, loc)),
             '*' => return Some(Token::with_text(TokenKind::Star, text, loc)),
+            // TODO: parse inline comment
             '/' => return Some(Token::with_text(TokenKind::Slash, text, loc)),
             _ => exit!("{}: error: unexpected character `{}`", loc, ch),
         }

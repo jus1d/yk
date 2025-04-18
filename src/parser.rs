@@ -210,7 +210,6 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
         }
 
         let primary = self.parse_primary_expr();
-
         if self.is_operator() {
             return Some(self.parse_binary_op(primary));
         }
@@ -304,7 +303,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                     exit!("{}: error: unexpected token: {:?}", token.loc, token.kind)
                 }
             },
-            None => exit!("error: expected binary operation, got EOF"),
+            None => exit!("error: expected binary operator, got EOF"),
         }
     }
 
