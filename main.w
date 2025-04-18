@@ -1,4 +1,4 @@
-fn square(int x) int64 {
+fn square(int64 x) int64 {
     ret x * x;
 }
 

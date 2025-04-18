@@ -1,4 +1,4 @@
-fn pow(x: int64) int64 {
+fn pow(int64 x) int64 {
     ret x * x;
 }
 

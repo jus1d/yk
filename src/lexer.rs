@@ -149,9 +149,8 @@ impl<Chars: Iterator<Item = char> + Clone> Iterator for Lexer<Chars> {
             return None;
         }
 
-        let mut text = String::new();
-
         let loc = Loc::new(self.filename.clone(), self.line, self.cur - self.bol);
+        let mut text = String::new();
 
         let ch = self.chars.next().unwrap();
         self.cur += 1;

@@ -65,17 +65,11 @@ pub enum BinaryOp {
     Div,
 }
 
-pub struct Parser<Tokens>
-where
-    Tokens: Iterator<Item = Token>,
-{
+pub struct Parser<Tokens> where Tokens: Iterator<Item = Token> {
     tokens: Peekable<Tokens>,
 }
 
-impl<Tokens> Parser<Tokens>
-where
-    Tokens: Iterator<Item = Token>,
-{
+impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
     pub fn from_iter(tokens: Tokens) -> Self {
         Parser {
             tokens: tokens.peekable(),
@@ -97,15 +91,14 @@ where
             Some(token) => match token.kind {
                 TokenKind::Word => {
                     let typ = token.text.clone();
+                    if !is_type(&typ) {
+                        exit!("{}: error: unknown type `{}`", token.loc, typ);
+                    }
+
                     self.tokens.next();
                     if let Some(token) = self.tokens.next() {
                         if token.kind != TokenKind::Word {
-                            exit!(
-                                "{}: error: expected {}, got {}",
-                                token.loc,
-                                TokenKind::Word,
-                                token.kind
-                            );
+                            exit!("{}: error: expected token kind {}, got {}", token.loc, TokenKind::Word, token.kind);
                         }
 
                         return Some(Param {
@@ -116,12 +109,7 @@ where
 
                     return None;
                 }
-                other => exit!(
-                    "{}: error: expected {}, got {}",
-                    token.loc,
-                    TokenKind::Word,
-                    other
-                ),
+                other => exit!("{}: error: expected token kind {}, got {}", token.loc, TokenKind::Word, other),
             },
             None => None,
         }
@@ -130,40 +118,24 @@ where
     pub fn parse_fn(&mut self) -> Option<Function> {
         let kw = self.tokens.next()?;
         if kw.kind != TokenKind::Word || kw.text != "fn" {
-            exit!(
-                "{}: error: unexpected token. expected keyword `fn`, got {}",
-                kw.loc,
-                kw.kind
-            );
+            exit!("{}: error: unexpected token. expected keyword `fn`, got {}", kw.loc, kw.kind);
         }
 
         let name = self.tokens.next().unwrap();
         if name.kind != TokenKind::Word {
-            exit!(
-                "{}: error: unexpected token. expected `word`, got {}",
-                name.loc,
-                name.kind
-            );
+            exit!("{}: error: unexpected token. expected `word`, got {}", name.loc, name.kind);
         }
 
         self.expect(TokenKind::OpenParen);
 
         let mut params = Vec::new();
 
-        if self
-            .tokens
-            .next_if(|t| t.kind == TokenKind::CloseParen)
-            .is_some()
-        {
+        if self.tokens.next_if(|t| t.kind == TokenKind::CloseParen).is_some() {
             // empty argument list
         } else {
             params.push(self.parse_param().unwrap());
 
-            while self
-                .tokens
-                .next_if(|t| t.kind == TokenKind::Comma)
-                .is_some()
-            {
+            while self.tokens.next_if(|t| t.kind == TokenKind::Comma).is_some() {
                 params.push(self.parse_param().unwrap());
             }
 
@@ -185,20 +157,11 @@ where
                 TokenKind::Word => {
                     let ret_type = self.tokens.next().unwrap();
                     if ret_type.kind != TokenKind::Word {
-                        exit!(
-                            "{}: error: expected token {}, got {}",
-                            ret_type.loc,
-                            TokenKind::Word,
-                            ret_type.kind
-                        );
+                        exit!("{}: error: expected token kind {}, got {}", ret_type.loc, TokenKind::Word, ret_type.kind);
                     }
 
-                    if !is_type(ret_type.text.clone()) {
-                        exit!(
-                            "{}: error: expected type, got {}",
-                            ret_type.loc,
-                            ret_type.kind
-                        );
+                    if !is_type(&ret_type.text) {
+                        exit!("{}: error: expected type, got {}", ret_type.loc, ret_type.kind);
                     }
 
                     let body = self.parse_block()?;
@@ -210,11 +173,7 @@ where
                         body,
                     });
                 }
-                other => exit!(
-                    "{}: error: expected block or return type, got {}",
-                    token.loc,
-                    other
-                ),
+                other => exit!("{}: error: expected block or return type, got {}", token.loc, other),
             },
             None => {
                 exit!("error: expected block or return type, got EOF");
@@ -225,12 +184,7 @@ where
     pub fn parse_block(&mut self) -> Option<Vec<Statement>> {
         let lbrace = self.tokens.next().unwrap();
         if lbrace.kind != TokenKind::OpenCurly {
-            exit!(
-                "{}: error: expected {}, got {}",
-                lbrace.loc,
-                TokenKind::OpenCurly,
-                lbrace.kind
-            );
+            exit!("{}: error: expected {}, got {}", lbrace.loc, TokenKind::OpenCurly, lbrace.kind);
         }
 
         let mut statements = Vec::new();
@@ -246,12 +200,7 @@ where
 
         let rbrace = self.tokens.next().unwrap();
         if rbrace.kind != TokenKind::CloseCurly {
-            exit!(
-                "{}: error: expected {}, got {}",
-                rbrace.loc,
-                TokenKind::CloseCurly,
-                rbrace.kind
-            );
+            exit!("{}: error: expected {}, got {}", rbrace.loc, TokenKind::CloseCurly, rbrace.kind);
         }
 
         Some(statements)
@@ -297,11 +246,7 @@ where
                             } else {
                                 args.push(self.parse_expr().unwrap());
 
-                                while self
-                                    .tokens
-                                    .next_if(|t| t.kind == TokenKind::Comma)
-                                    .is_some()
-                                {
+                                while self.tokens.next_if(|t| t.kind == TokenKind::Comma).is_some() {
                                     args.push(self.parse_expr().unwrap());
                                 }
 
@@ -317,10 +262,7 @@ where
                     }
                 }
                 TokenKind::OpenParen => {
-                    exit!(
-                        "{}: error: grouping expression are not supported yet",
-                        token.loc,
-                    )
+                    exit!("{}: error: grouping expression are not supported yet", token.loc)
                 }
                 _ => exit!("{}: error: unexpected token: {:?}", token.loc, token.kind),
             }
@@ -375,11 +317,7 @@ where
                     "ret" => {
                         let value = self.parse_expr().unwrap();
 
-                        if self
-                            .tokens
-                            .next_if(|t| t.kind == TokenKind::Semicolon)
-                            .is_none()
-                        {
+                        if self.tokens.next_if(|t| t.kind == TokenKind::Semicolon).is_none() {
                             exit!("{}: error: missing semicolon after return", token.loc);
                         }
 
@@ -389,54 +327,30 @@ where
                         let name = token.text;
                         let mut args = Vec::new();
 
-                        if self
-                            .tokens
-                            .next_if(|t| t.kind == TokenKind::OpenParen)
-                            .is_some()
-                        {
-                            if self
-                                .tokens
-                                .next_if(|t| t.kind == TokenKind::CloseParen)
-                                .is_some()
-                            {
+                        if self.tokens.next_if(|t| t.kind == TokenKind::OpenParen).is_some() {
+                            if self.tokens.next_if(|t| t.kind == TokenKind::CloseParen).is_some() {
                                 // empty argument list
                             } else {
                                 args.push(self.parse_expr().unwrap());
 
-                                while self
-                                    .tokens
-                                    .next_if(|t| t.kind == TokenKind::Comma)
-                                    .is_some()
-                                {
+                                while self.tokens.next_if(|t| t.kind == TokenKind::Comma).is_some() {
                                     args.push(self.parse_expr().unwrap());
                                 }
                             }
 
-                            if self
-                                .tokens
-                                .next_if(|t| t.kind == TokenKind::CloseParen)
-                                .is_none()
-                            {
+                            if self.tokens.next_if(|t| t.kind == TokenKind::CloseParen).is_none() {
                                 exit!("error: expected `close paren` after arguments");
                             }
                         }
 
-                        if self
-                            .tokens
-                            .next_if(|t| t.kind == TokenKind::Semicolon)
-                            .is_none()
-                        {
+                        if self.tokens.next_if(|t| t.kind == TokenKind::Semicolon).is_none() {
                             exit!("error: expected `semicolon` function call");
                         }
 
                         return Some(Statement::Funcall { name, args });
                     }
                 },
-                _ => exit!(
-                    "{}: error: expected `word`, got {:?}",
-                    token.loc,
-                    token.kind
-                ),
+                _ => exit!("{}: error: expected `word`, got {:?}", token.loc, token.kind),
             },
             None => exit!("error: expected statement, got EOF"),
         }
@@ -447,20 +361,15 @@ where
             None => exit!("error: expected token of kind {:?}, got EOF", kind),
             Some(token) => {
                 if token.kind != kind {
-                    exit!(
-                        "{}: error: expected token of kind {:?}, got {:?}",
-                        token.loc,
-                        kind,
-                        token.kind
-                    )
+                    exit!("{}: error: expected token of kind {:?}, got {:?}", token.loc, kind, token.kind)
                 };
             }
         }
     }
 }
 
-fn is_type(s: String) -> bool {
-    match s.as_str() {
+fn is_type(s: &str) -> bool {
+    match s {
         "int64" | "string" | "void" => return true,
         _ => return false,
     }
