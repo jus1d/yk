@@ -90,9 +90,9 @@ pub struct Loc {
 }
 
 impl Loc {
-    fn new(filename: String, line: usize, col: usize) -> Self {
+    fn new(filename: &str, line: usize, col: usize) -> Self {
         Loc {
-            filename,
+            filename: filename.to_string(),
             line,
             col,
         }
@@ -149,7 +149,7 @@ impl<Chars: Iterator<Item = char> + Clone> Iterator for Lexer<Chars> {
             return None;
         }
 
-        let loc = Loc::new(self.filename.clone(), self.line, self.cur - self.bol);
+        let loc = Loc::new(&self.filename, self.line, self.cur - self.bol);
         let mut text = String::new();
 
         let ch = self.chars.next().unwrap();

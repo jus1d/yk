@@ -130,9 +130,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
 
         let mut params = Vec::new();
 
-        if self.tokens.next_if(|t| t.kind == TokenKind::CloseParen).is_some() {
-            // empty argument list
-        } else {
+        if self.tokens.next_if(|t| t.kind == TokenKind::CloseParen).is_none() {
             params.push(self.parse_param().unwrap());
 
             while self.tokens.next_if(|t| t.kind == TokenKind::Comma).is_some() {
@@ -208,7 +206,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
 
     pub fn parse_expr(&mut self) -> Option<Expr> {
         if self.tokens.peek().is_none() {
-            exit!("error: unexpected EOF");
+            exit!("error: expected expression, got EOF");
         }
 
         let primary = self.parse_primary_expr();
@@ -227,7 +225,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                 TokenKind::String => return Expr::String(token.text),
                 TokenKind::Word => {
                     if self.tokens.peek().is_none() {
-                        exit!("error: unexpected EOF");
+                        exit!("error: expected terminating token for expression, got EOF");
                     }
 
                     let next_token = self.tokens.peek().unwrap();
@@ -238,7 +236,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                             let mut args = Vec::new();
 
                             if self.tokens.peek().is_none() {
-                                exit!("error: unexpected EOF");
+                                exit!("error: expected expressions as arguments or {}, got EOF", TokenKind::CloseParen);
                             }
 
                             if self.tokens.peek().unwrap().kind == TokenKind::CloseParen {
@@ -267,7 +265,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                 _ => exit!("{}: error: unexpected token: {:?}", token.loc, token.kind),
             }
         } else {
-            exit!("error: unexpected EOF");
+            exit!("error: expected expression, got EOF");
         }
     }
 
@@ -306,7 +304,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                     exit!("{}: error: unexpected token: {:?}", token.loc, token.kind)
                 }
             },
-            None => exit!("error: unexpected EOF"),
+            None => exit!("error: expected binary operation, got EOF"),
         }
     }
 
@@ -328,9 +326,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                         let mut args = Vec::new();
 
                         if self.tokens.next_if(|t| t.kind == TokenKind::OpenParen).is_some() {
-                            if self.tokens.next_if(|t| t.kind == TokenKind::CloseParen).is_some() {
-                                // empty argument list
-                            } else {
+                            if self.tokens.next_if(|t| t.kind == TokenKind::CloseParen).is_none() {
                                 args.push(self.parse_expr().unwrap());
 
                                 while self.tokens.next_if(|t| t.kind == TokenKind::Comma).is_some() {
