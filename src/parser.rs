@@ -21,7 +21,15 @@ pub struct Program {
 pub struct Function {
     name: String,
     ret_type: String,
+    params: Vec<Param>,
     body: Vec<Statement>,
+}
+
+#[allow(dead_code)]
+#[derive(Debug)]
+pub struct Param {
+    name: String,
+    typ: String,
 }
 
 #[allow(dead_code)]
@@ -84,6 +92,27 @@ where
         return program;
     }
 
+    pub fn parse_param(&mut self) -> Option<Param> {
+        match self.tokens.peek() {
+            Some(token) => match token.kind {
+                TokenKind::Word => {
+                    let typ = token.text.clone();
+                    self.tokens.next();
+                    if let Some(token) = self.tokens.next() {
+                        return Some(Param {
+                            typ,
+                            name: token.text,
+                        });
+                    }
+
+                    return None;
+                }
+                _ => todo!("Expected token kind `word`"),
+            },
+            None => None,
+        }
+    }
+
     pub fn parse_fn(&mut self) -> Option<Function> {
         let kw = self.tokens.next()?;
         if kw.kind != TokenKind::Word || kw.text != "fn" {
@@ -97,10 +126,27 @@ where
 
         self.expect(TokenKind::OpenParen);
 
-        // TODO: parse args
-        while let Some(_) = self.tokens.next_if(|t| t.kind != TokenKind::CloseParen) {}
+        let mut params = Vec::new();
 
-        self.expect(TokenKind::CloseParen);
+        if self
+            .tokens
+            .next_if(|t| t.kind == TokenKind::CloseParen)
+            .is_some()
+        {
+            // empty argument list
+        } else {
+            params.push(self.parse_param().unwrap());
+
+            while self
+                .tokens
+                .next_if(|t| t.kind == TokenKind::Comma)
+                .is_some()
+            {
+                params.push(self.parse_param().unwrap());
+            }
+
+            self.expect(TokenKind::CloseParen);
+        }
 
         match self.tokens.peek() {
             Some(token) => match token.kind {
@@ -110,6 +156,7 @@ where
                     return Some(Function {
                         name: name.text,
                         ret_type: "void".to_string(),
+                        params,
                         body,
                     });
                 }
@@ -128,6 +175,7 @@ where
                     return Some(Function {
                         name: name.text,
                         ret_type: ret_type.text,
+                        params,
                         body,
                     });
                 }
@@ -383,7 +431,15 @@ impl fmt::Display for Program {
 
 impl fmt::Display for Function {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "fn {}() {} {{", self.name, self.ret_type)?;
+        write!(f, "fn {}(", self.name)?;
+        for (i, param) in self.params.iter().enumerate() {
+            if i == 0 {
+                write!(f, "{} {}", param.typ, param.name)?;
+            } else {
+                write!(f, ", {} {}", param.typ, param.name)?;
+            }
+        }
+        write!(f, ") {} {{\n", self.ret_type)?;
         for statement in &self.body {
             writeln!(f, "    {}", statement)?;
         }
