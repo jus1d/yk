@@ -119,6 +119,10 @@ where
                         todo!("Implement error handling for invalid function name");
                     }
 
+                    if !is_type(ret_type.text.clone()) {
+                        todo!("Unknown type `{}`", ret_type.text);
+                    }
+
                     let body = self.parse_block()?;
 
                     return Some(Function {
@@ -355,6 +359,13 @@ where
                 };
             }
         }
+    }
+}
+
+fn is_type(s: String) -> bool {
+    match s.as_str() {
+        "int64" | "string" | "void" => return true,
+        _ => return false,
     }
 }
 
