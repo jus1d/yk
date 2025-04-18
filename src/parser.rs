@@ -57,7 +57,7 @@ pub enum Expr {
     },
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum BinaryOp {
     Add,
     Sub,
@@ -227,7 +227,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
             };
 
             if let Some(op) = op {
-                let prec = get_op_precedence(op.clone());
+                let prec = get_op_precedence(&op);
                 if prec < min_prec {
                     break;
                 }
@@ -244,7 +244,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
             }
         }
 
-        lhs
+        return lhs;
     }
 
     fn parse_primary_expr(&mut self) -> Expr {
@@ -353,7 +353,7 @@ fn is_type(s: &str) -> bool {
     }
 }
 
-fn get_op_precedence(op: BinaryOp) -> u8 {
+fn get_op_precedence(op: &BinaryOp) -> u8 {
     match op {
         BinaryOp::Add | BinaryOp::Sub => 1,
         BinaryOp::Mul | BinaryOp::Div => 2,
