@@ -3,6 +3,7 @@ use std::process;
 
 pub mod lexer;
 pub mod parser;
+pub mod compiler;
 
 fn main() {
     let mut args = std::env::args();
@@ -19,5 +20,7 @@ fn main() {
     let mut parser = parser::Parser::from_iter(lexer);
 
     let program = parser.parse_program();
-    println!("{}", program);
+    // println!("{}", program);
+
+    compiler::compile_aarch64(&program);
 }

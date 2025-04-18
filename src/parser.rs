@@ -13,23 +13,23 @@ macro_rules! exit {
 #[allow(dead_code)]
 #[derive(Debug)]
 pub struct Program {
-    functions: Vec<Function>,
+    pub functions: Vec<Function>,
 }
 
 #[allow(dead_code)]
 #[derive(Debug)]
 pub struct Function {
-    name: String,
-    ret_type: String,
-    params: Vec<Param>,
-    body: Vec<Statement>,
+    pub name: String,
+    pub ret_type: String,
+    pub params: Vec<Param>,
+    pub body: Vec<Statement>,
 }
 
 #[allow(dead_code)]
 #[derive(Debug)]
 pub struct Param {
-    name: String,
-    typ: String,
+    pub name: String,
+    pub typ: String,
 }
 
 #[allow(dead_code)]
@@ -66,7 +66,7 @@ pub enum BinaryOp {
 }
 
 pub struct Parser<Tokens> where Tokens: Iterator<Item = Token> {
-    tokens: Peekable<Tokens>,
+    pub tokens: Peekable<Tokens>,
 }
 
 impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
