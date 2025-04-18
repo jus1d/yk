@@ -20,6 +20,7 @@ pub struct Program {
 #[derive(Debug)]
 pub struct Function {
     name: String,
+    ret_type: String,
     body: Vec<Statement>,
 }
 
@@ -101,12 +102,37 @@ where
 
         self.expect(TokenKind::CloseParen);
 
-        let body = self.parse_block()?;
+        match self.tokens.peek() {
+            Some(token) => match token.kind {
+                TokenKind::OpenCurly => {
+                    let body = self.parse_block()?;
 
-        Some(Function {
-            name: name.text,
-            body,
-        })
+                    return Some(Function {
+                        name: name.text,
+                        ret_type: "void".to_string(),
+                        body,
+                    });
+                }
+                TokenKind::Word => {
+                    let ret_type = self.tokens.next().unwrap();
+                    if ret_type.kind != TokenKind::Word {
+                        todo!("Implement error handling for invalid function name");
+                    }
+
+                    let body = self.parse_block()?;
+
+                    return Some(Function {
+                        name: name.text,
+                        ret_type: ret_type.text,
+                        body,
+                    });
+                }
+                _ => todo!("Expected block or return type"),
+            },
+            None => {
+                todo!("Expected block or return type, got none");
+            }
+        }
     }
 
     pub fn parse_block(&mut self) -> Option<Vec<Statement>> {
@@ -346,7 +372,7 @@ impl fmt::Display for Program {
 
 impl fmt::Display for Function {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "fn {}() {{", self.name)?;
+        writeln!(f, "fn {}() {} {{", self.name, self.ret_type)?;
         for statement in &self.body {
             writeln!(f, "    {}", statement)?;
         }
