@@ -2,8 +2,11 @@ use crate::parser::Expr;
 use crate::parser::Program;
 use crate::parser::Statement;
 
+use std::io;
+use std::io::Write;
+
 #[allow(unreachable_patterns)]
-pub fn compile_aarch64(program: &Program) {
+pub fn generate_asm_aarch64(mut out: impl Write, program: &Program) -> io::Result<()> {
     for function in &program.functions {
         if &function.name != "main" {
             todo!("compiling only main function is implemented");
@@ -11,18 +14,16 @@ pub fn compile_aarch64(program: &Program) {
 
         let mut strings = Vec::<String>::new();
 
-        write_preamble();
+        generate_preamble(&mut out)?;
 
-        println!();
-
-        println!("_main:");
+        writeln!(out, "_main:")?;
         for statement in &function.body {
             match statement {
                 Statement::Ret { value } => {
                     if let Some(value) = value {
                         match value {
                             Expr::Number(number) => {
-                                write_epilogue(*number as u8);
+                                generate_epilogue(&mut out, *number as u8)?;
                             }
                             _ => todo!("returning only integer values is implemented")
                         }
@@ -35,42 +36,47 @@ pub fn compile_aarch64(program: &Program) {
 
                     let i = strings.len();
                     let text = match &args[0] {
-                        Expr::String(s) => s.clone(),
-                        _ => String::from("")
+                        Expr::String(s) => s.as_str(),
+                        _ => ""
                     };
-                    strings.push(text.clone());
+                    strings.push(text.to_string());
 
-                    println!("    ; println(\"{}\")", text);
-                    println!("    mov     x0, #1");
-                    println!("    adrp    x1, strings.{}@PAGE", i);
-                    println!("    add     x1, x1, strings.{}@PAGEOFF", i);
-                    println!("    mov     x2, #{}", text.len() + 1); // +1 for \n
-                    println!("    mov     x16, #4");
-                    println!("    svc     #0x80");
+                    writeln!(out, "    ; println(\"{}\")", text)?;
+                    writeln!(out, "    mov     x0, #1")?;
+                    writeln!(out, "    adrp    x1, strings.{}@PAGE", i)?;
+                    writeln!(out, "    add     x1, x1, strings.{}@PAGEOFF", i)?;
+                    writeln!(out, "    mov     x2, #{}", text.len() + 1)?; // +1 for \n
+                    writeln!(out, "    mov     x16, #4")?;
+                    writeln!(out, "    svc     #0x80")?;
                 }
                 _ => todo!()
             }
         }
 
-        write_data(strings);
+        generate_data(&mut out, strings)?;
+
     }
+    Ok(())
 }
 
-fn write_preamble() {
-    println!(".global _main");
-    println!(".align 2");
+fn generate_preamble(mut out: impl Write) -> io::Result<()> {
+    writeln!(out, ".global _main")?;
+    writeln!(out, ".align 2")?;
+    Ok(())
 }
 
-fn write_epilogue(status: u8) {
-    println!("    ; exit({})", status);
-    println!("    mov     x0, #{}", status);
-    println!("    mov     x16, #1");
-    println!("    svc     #0x80\n");
+fn generate_epilogue(mut out: impl Write, status: u8) -> io::Result<()> {
+    writeln!(out, "    ; exit({})", status)?;
+    writeln!(out, "    mov     x0, #{}", status)?;
+    writeln!(out, "    mov     x16, #1")?;
+    writeln!(out, "    svc     #0x80")?;
+    Ok(())
 }
 
-fn write_data(strings: Vec<String>) {
+fn generate_data(mut out: impl Write, strings: Vec<String>) -> io::Result<()> {
     for (i, s) in strings.iter().enumerate() {
-        println!("strings.{}:", i);
-        println!("    .ascii \"{}\\n\"", s);
+        writeln!(out, "strings.{}:", i)?;
+        writeln!(out, "    .ascii \"{}\\n\"", s)?;
     }
+    Ok(())
 }

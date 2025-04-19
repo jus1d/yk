@@ -1,3 +1,4 @@
+use std::io;
 use std::fs;
 use std::process;
 
@@ -20,7 +21,11 @@ fn main() {
     let mut parser = parser::Parser::from_iter(lexer);
 
     let program = parser.parse_program();
-    // println!("{}", program);
 
-    compiler::compile_aarch64(&program);
+    if cfg![target_arch = "aarch64"] {
+        compiler::generate_asm_aarch64(io::stdout(), &program).unwrap();
+    } else {
+        eprintln!("error: unsupported architecture. only aarch64 is supported");
+        process::exit(1);
+    }
 }
