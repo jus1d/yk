@@ -1,14 +1,8 @@
 use crate::lexer::{Token, TokenKind};
+use crate::diag;
 
 use std::fmt;
 use std::iter::Peekable;
-
-macro_rules! exit {
-    ($($arg:tt)*) => {{
-        eprintln!($($arg)*);
-        std::process::exit(1);
-    }};
-}
 
 #[allow(dead_code)]
 #[derive(Debug)]
@@ -92,13 +86,13 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                 TokenKind::Word => {
                     let typ = token.text.clone();
                     if !is_type(&typ) {
-                        exit!("{}: error: unknown type `{}`", token.loc, typ);
+                        diag::fatal!(token.loc, "unknown type `{}`", typ);
                     }
 
                     self.tokens.next();
                     if let Some(token) = self.tokens.next() {
                         if token.kind != TokenKind::Word {
-                            exit!("{}: error: expected token kind {}, got {}", token.loc, TokenKind::Word, token.kind);
+                            diag::fatal!(token.loc, "expected token kind {}, got {}", TokenKind::Word, token.kind);
                         }
 
                         return Some(Param {
@@ -109,7 +103,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
 
                     return None;
                 }
-                other => exit!("{}: error: expected token kind {}, got {}", token.loc, TokenKind::Word, other),
+                other => diag::fatal!(token.loc, "expected token kind {}, got {}", TokenKind::Word, other),
             },
             None => None,
         }
@@ -118,12 +112,12 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
     pub fn parse_fn(&mut self) -> Option<Function> {
         let kw = self.tokens.next()?;
         if kw.kind != TokenKind::Word || kw.text != "fn" {
-            exit!("{}: error: unexpected token. expected keyword `fn`, got {}", kw.loc, kw.kind);
+            diag::fatal!(kw.loc, "unexpected token. expected keyword `fn`, got `{}`", kw.text);
         }
 
         let name = self.tokens.next().unwrap();
         if name.kind != TokenKind::Word {
-            exit!("{}: error: unexpected token. expected `word`, got {}", name.loc, name.kind);
+            diag::fatal!(name.loc, "unexpected token. expected `word`, got {}", name.kind);
         }
 
         self.expect(TokenKind::OpenParen);
@@ -155,11 +149,11 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                 TokenKind::Word => {
                     let ret_type = self.tokens.next().unwrap();
                     if ret_type.kind != TokenKind::Word {
-                        exit!("{}: error: expected token kind {}, got {}", ret_type.loc, TokenKind::Word, ret_type.kind);
+                        diag::fatal!(ret_type.loc, "expected token kind {}, got {}", TokenKind::Word, ret_type.kind);
                     }
 
                     if !is_type(&ret_type.text) {
-                        exit!("{}: error: expected type, got {}", ret_type.loc, ret_type.kind);
+                        diag::fatal!(ret_type.loc, "unknown type `{}`", ret_type.text);
                     }
 
                     let body = self.parse_block();
@@ -171,18 +165,16 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                         body,
                     });
                 }
-                other => exit!("{}: error: expected block or return type, got {}", token.loc, other),
+                other => diag::fatal!(token.loc, "expected block or return type, got {}", other),
             },
-            None => {
-                exit!("error: expected block or return type, got EOF");
-            }
+            None => diag::fatal!("error: expected block or return type, got EOF"),
         }
     }
 
     pub fn parse_block(&mut self) -> Vec<Statement> {
         let lbrace = self.tokens.next().unwrap();
         if lbrace.kind != TokenKind::OpenCurly {
-            exit!("{}: error: expected {}, got {}", lbrace.loc, TokenKind::OpenCurly, lbrace.kind);
+            diag::fatal!(lbrace.loc, "expected {}, got {}", TokenKind::OpenCurly, lbrace.kind);
         }
 
         let mut statements = Vec::new();
@@ -194,13 +186,13 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                     break;
                 }
             } else {
-                exit!("error: expected terminating {} or next statement, got EOF", TokenKind::CloseCurly);
+                diag::fatal!("expected terminating {} or next statement, got EOF", TokenKind::CloseCurly);
             }
         }
 
         let rbrace = self.tokens.next().unwrap();
         if rbrace.kind != TokenKind::CloseCurly {
-            exit!("{}: error: expected {}, got {}", rbrace.loc, TokenKind::CloseCurly, rbrace.kind);
+            diag::fatal!(rbrace.loc, "expected {}, got {}", TokenKind::CloseCurly, rbrace.kind);
         }
 
         return statements;
@@ -212,7 +204,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
 
     fn parse_expr_prec(&mut self, min_prec: u8) -> Expr {
         if self.tokens.peek().is_none() {
-            exit!("error: expected expression, got EOF");
+            diag::fatal!("expected expression, got EOF");
         }
 
         let mut lhs = self.parse_primary_expr();
@@ -283,10 +275,10 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                     self.expect(TokenKind::CloseParen);
                     return expr;
                 }
-                _ => exit!("{}: error: unexpected token: {:?}", token.loc, token.kind),
+                _ => diag::fatal!(token.loc, "unexpected token: {:?}", token.kind),
             }
         } else {
-            exit!("error: expected expression, got EOF");
+            diag::fatal!("expected expression, got EOF");
         }
     }
 
@@ -298,7 +290,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                         let value = self.parse_expr();
 
                         if self.tokens.next_if(|t| t.kind == TokenKind::Semicolon).is_none() {
-                            exit!("{}: error: missing semicolon after return", token.loc);
+                            diag::fatal!(token.loc, "missing semicolon after return");
                         }
 
                         return Statement::Ret { value: Some(value) };
@@ -317,29 +309,31 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                             }
 
                             if self.tokens.next_if(|t| t.kind == TokenKind::CloseParen).is_none() {
-                                exit!("error: expected `close paren` after arguments");
+                                diag::fatal!("expected {} after arguments", TokenKind::CloseParen);
                             }
+                        } else {
+                            diag::fatal!(token.loc, "expected {} after function name", TokenKind::OpenParen);
                         }
 
                         if self.tokens.next_if(|t| t.kind == TokenKind::Semicolon).is_none() {
-                            exit!("error: expected `semicolon` function call");
+                            diag::fatal!("expected {} after function call", TokenKind::Semicolon);
                         }
 
                         return Statement::Funcall { name, args };
                     }
                 },
-                _ => exit!("{}: error: expected `word`, got {:?}", token.loc, token.kind),
+                _ => diag::fatal!(token.loc, "expected statement, got {}\nonly `ret` and `funcall` statements are supported yet", token.kind),
             },
-            None => exit!("error: expected statement, got EOF"),
+            None => diag::fatal!("expected statement, got EOF"),
         }
     }
 
     fn expect(&mut self, kind: TokenKind) {
         match self.tokens.next() {
-            None => exit!("error: expected token of kind {:?}, got EOF", kind),
+            None => diag::fatal!("expected token of kind {}, got EOF", kind),
             Some(token) => {
                 if token.kind != kind {
-                    exit!("{}: error: expected token of kind {:?}, got {:?}", token.loc, kind, token.kind)
+                    diag::fatal!(token.loc, "expected token {}, got {}", kind, token.kind)
                 };
             }
         }

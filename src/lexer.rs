@@ -1,12 +1,7 @@
+use crate::diag;
+
 use std::fmt;
 use std::iter::Peekable;
-
-macro_rules! exit {
-    ($($arg:tt)*) => {{
-        eprintln!($($arg)*);
-        std::process::exit(1);
-    }};
-}
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum TokenKind {
@@ -84,13 +79,13 @@ impl Token {
 
 #[derive(Debug)]
 pub struct Loc {
-    filename: String,
-    line: usize,
-    col: usize,
+    pub filename: String,
+    pub line: usize,
+    pub col: usize,
 }
 
 impl Loc {
-    fn new(filename: &str, line: usize, col: usize) -> Self {
+    pub fn new(filename: &str, line: usize, col: usize) -> Self {
         Loc {
             filename: filename.to_string(),
             line,
@@ -159,13 +154,13 @@ impl<Chars: Iterator<Item = char> + Clone> Iterator for Lexer<Chars> {
             while let Some(ch) = self.chars.next() {
                 self.cur += 1;
                 match ch {
-                    '\\' => exit!("{}: error: escaping strings is not supported yet", loc),
+                    '\\' => diag::fatal!(loc, "escaping strings is not supported yet"),
                     '"' => return Some(Token::with_text(TokenKind::String, text, loc)),
                     _ => text.push(ch),
                 }
             }
 
-            exit!("{}: error: unclosed string literal", loc);
+            diag::fatal!(loc, "unclosed string literal");
         }
 
         text.push(ch);
@@ -196,7 +191,7 @@ impl<Chars: Iterator<Item = char> + Clone> Iterator for Lexer<Chars> {
             '*' => return Some(Token::with_text(TokenKind::Star, text, loc)),
             // TODO: parse inline comment
             '/' => return Some(Token::with_text(TokenKind::Slash, text, loc)),
-            _ => exit!("{}: error: unexpected character `{}`", loc, ch),
+            _ => diag::fatal!(loc, "unexpected character `{}`", ch),
         }
     }
 }

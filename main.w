@@ -1,4 +1,4 @@
-fn main() int64 {
-    println("helloooooo");
+fn main() {
+    x println("helloooooo");
     ret 69;
 }
