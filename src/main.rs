@@ -2,6 +2,7 @@ pub mod lexer;
 pub mod parser;
 pub mod compiler;
 pub mod diag;
+pub mod analyzer;
 
 use std::io;
 use std::fs;
@@ -20,10 +21,11 @@ fn main() {
     let mut parser = parser::Parser::from_iter(lexer);
 
     let program = parser.parse_program();
+    analyzer::check_collisions_with_builtin(&program);
 
     if cfg![target_arch = "aarch64"] {
         let mut stdout = io::stdout().lock();
-        compiler::generate_asm_aarch64(&mut stdout, &program).unwrap();
+        compiler::generate_asm_aarch64_darwin(&mut stdout, &program).unwrap();
     } else {
         diag::fatal!("unsupported architecture. only `aarch64` is supported now");
     }

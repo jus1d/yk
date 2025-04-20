@@ -8,7 +8,7 @@ use std::io;
 use std::io::Write;
 
 #[allow(unreachable_patterns)]
-pub fn generate_asm_aarch64<W: Write>(out: &mut W, program: &Program) -> io::Result<()> {
+pub fn generate_asm_aarch64_darwin<W: Write>(out: &mut W, program: &Program) -> io::Result<()> {
     for function in &program.functions {
         if &function.name != "main" {
             diag::warning!("compiling only main function is implemented. skipping '{}'...", function.name);
@@ -43,28 +43,52 @@ fn generate_statement<W: Write>(out: &mut W, statement: &Statement, strings: &mu
             }
         }
         Statement::Funcall { name, args } => {
-            if name.as_str() != "println" {
-                diag::warning!("calling only `println` function is supported yet. skipping...");
-                return Ok(());
+            match name.as_str() {
+                "println" => {
+                    let text = match &args[0] {
+                        Expr::String(s) => s.as_str(),
+                        _ => ""
+                    };
+                    strings.push(text.to_string());
+
+                    generate_println(out, text, strings.len() - 1)?;
+                }
+                "exit" => {
+                    let code: i64 = match &args[0] {
+                        Expr::Number(n) => *n,
+                        _ => 69,
+                    };
+
+                    generate_exit(out, code as u8)?;
+                }
+                _ => {
+                    diag::warning!("calling only `println` function is supported yet. skipping...");
+                    return Ok(());
+                }
             }
-
-            let n = strings.len();
-            let text = match &args[0] {
-                Expr::String(s) => s.as_str(),
-                _ => ""
-            };
-            strings.push(text.to_string());
-
-            writeln!(out, "    ; println(\"{}\")", text)?;
-            writeln!(out, "    mov     x0, 1")?;
-            writeln!(out, "    adrp    x1, strings.{}@PAGE", n)?;
-            writeln!(out, "    add     x1, x1, strings.{}@PAGEOFF", n)?;
-            writeln!(out, "    mov     x2, {}", text.len() + 1)?; // +1 for \n
-            writeln!(out, "    mov     x16, 4")?;
-            writeln!(out, "    svc     0x80")?;
         }
         _ => todo!()
     }
+    Ok(())
+}
+
+fn generate_println<W: Write>(out: &mut W, text: &str, idx: usize) -> io::Result<()> {
+    let length = text.len();
+    writeln!(out, "    ; println(\"{}\")", text)?;
+    writeln!(out, "    mov     x0, 1")?;
+    writeln!(out, "    adrp    x1, strings.{}@PAGE", idx)?;
+    writeln!(out, "    add     x1, x1, strings.{}@PAGEOFF", idx)?;
+    writeln!(out, "    mov     x2, {}", length + 1)?; // +1 for \n
+    writeln!(out, "    mov     x16, 4")?;
+    writeln!(out, "    svc     0x80")?;
+    Ok(())
+}
+
+fn generate_exit<W: Write>(out: &mut W, code: u8) -> io::Result<()> {
+    writeln!(out, "    ; exit({})", code)?;
+    writeln!(out, "    mov     x0, {}", code)?;
+    writeln!(out, "    mov     x16, 1")?;
+    writeln!(out, "    svc     0x80")?;
     Ok(())
 }
 
