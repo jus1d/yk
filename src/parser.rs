@@ -296,7 +296,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                         return Statement::Ret { value: Some(value) };
                     }
                     _ => {
-                        let name = token.text;
+                        let name = token.text.clone();
                         let mut args = Vec::new();
 
                         if self.tokens.next_if(|t| t.kind == TokenKind::OpenParen).is_some() {
@@ -312,7 +312,9 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                                 diag::fatal!("expected {} after arguments", TokenKind::CloseParen);
                             }
                         } else {
-                            diag::fatal!(token.loc, "expected {} after function name", TokenKind::OpenParen);
+                            let mut loc = token.loc.clone();
+                            loc.col += token.text.len();
+                            diag::fatal!(loc, "expected {} after function name", TokenKind::OpenParen);
                         }
 
                         if self.tokens.next_if(|t| t.kind == TokenKind::Semicolon).is_none() {

@@ -77,7 +77,7 @@ impl Token {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Loc {
     pub filename: String,
     pub line: usize,
