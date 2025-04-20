@@ -22,7 +22,8 @@ fn main() {
     let program = parser.parse_program();
 
     if cfg![target_arch = "aarch64"] {
-        compiler::generate_asm_aarch64(io::stdout(), &program).unwrap();
+        let mut stdout = io::stdout().lock();
+        compiler::generate_asm_aarch64(&mut stdout, &program).unwrap();
     } else {
         diag::fatal!("unsupported architecture. only `aarch64` is supported now");
     }

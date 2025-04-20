@@ -1,79 +1,121 @@
+use crate::parser::BinaryOp;
 use crate::parser::Expr;
 use crate::parser::Program;
 use crate::parser::Statement;
+use crate::diag;
 
 use std::io;
 use std::io::Write;
 
 #[allow(unreachable_patterns)]
-pub fn generate_asm_aarch64(mut out: impl Write, program: &Program) -> io::Result<()> {
+pub fn generate_asm_aarch64<W: Write>(out: &mut W, program: &Program) -> io::Result<()> {
     for function in &program.functions {
         if &function.name != "main" {
-            todo!("compiling only main function is implemented");
+            diag::warning!("compiling only main function is implemented. skipping '{}'...", function.name);
+            continue;
         }
 
         let mut strings = Vec::<String>::new();
 
-        generate_preamble(&mut out)?;
+        generate_preamble(out)?;
 
         writeln!(out, "_main:")?;
+        generate_function_prologue(out)?;
+
         for statement in &function.body {
-            match statement {
-                Statement::Ret { value } => {
-                    if let Some(value) = value {
-                        match value {
-                            Expr::Number(number) => {
-                                generate_epilogue(&mut out, *number as u8)?;
-                            }
-                            _ => todo!("returning only integer values is implemented")
-                        }
-                    }
-                }
-                Statement::Funcall { name, args } => {
-                    if name.as_str() != "println" {
-                        todo!();
-                    }
-
-                    let i = strings.len();
-                    let text = match &args[0] {
-                        Expr::String(s) => s.as_str(),
-                        _ => ""
-                    };
-                    strings.push(text.to_string());
-
-                    writeln!(out, "    ; println(\"{}\")", text)?;
-                    writeln!(out, "    mov     x0, #1")?;
-                    writeln!(out, "    adrp    x1, strings.{}@PAGE", i)?;
-                    writeln!(out, "    add     x1, x1, strings.{}@PAGEOFF", i)?;
-                    writeln!(out, "    mov     x2, #{}", text.len() + 1)?; // +1 for \n
-                    writeln!(out, "    mov     x16, #4")?;
-                    writeln!(out, "    svc     #0x80")?;
-                }
-                _ => todo!()
-            }
+            generate_statement(out, statement, &mut strings)?;
         }
 
-        generate_data(&mut out, strings)?;
-
+        generate_function_epilogue(out)?;
+        generate_data(out, strings)?;
     }
     Ok(())
 }
 
-fn generate_preamble(mut out: impl Write) -> io::Result<()> {
+#[allow(unreachable_patterns)]
+fn generate_statement<W: Write>(out: &mut W, statement: &Statement, strings: &mut Vec<String>) -> io::Result<()> {
+    match statement {
+        Statement::Ret { value } => {
+            if let Some(expr) = value {
+                generate_expression(out, &expr)?;
+            } else {
+                writeln!(out, "    ret")?;
+            }
+        }
+        Statement::Funcall { name, args } => {
+            if name.as_str() != "println" {
+                diag::warning!("calling only `println` function is supported yet. skipping...");
+                return Ok(());
+            }
+
+            let n = strings.len();
+            let text = match &args[0] {
+                Expr::String(s) => s.as_str(),
+                _ => ""
+            };
+            strings.push(text.to_string());
+
+            writeln!(out, "    ; println(\"{}\")", text)?;
+            writeln!(out, "    mov     x0, 1")?;
+            writeln!(out, "    adrp    x1, strings.{}@PAGE", n)?;
+            writeln!(out, "    add     x1, x1, strings.{}@PAGEOFF", n)?;
+            writeln!(out, "    mov     x2, {}", text.len() + 1)?; // +1 for \n
+            writeln!(out, "    mov     x16, 4")?;
+            writeln!(out, "    svc     0x80")?;
+        }
+        _ => todo!()
+    }
+    Ok(())
+}
+
+fn generate_expression<W: Write>(out: &mut W, expr: &Expr) -> io::Result<()> {
+    match expr {
+        Expr::Number(n) => writeln!(out, "    mov     x0, {}", n),
+        Expr::Binary { op, lhs, rhs } => {
+            generate_expression(out, lhs)?;
+            writeln!(out, "    str     x0, [sp, #-16]!")?;
+            generate_expression(out, rhs)?;
+            writeln!(out, "    ldr     x1, [sp], #16")?;
+            match op {
+                BinaryOp::Add => writeln!(out, "    add     x0, x1, x0"),
+                BinaryOp::Sub => writeln!(out, "    sub     x0, x1, x0"),
+                BinaryOp::Mul => writeln!(out, "    mul     x0, x1, x0"),
+                BinaryOp::Div => writeln!(out, "    sdiv    x0, x1, x0"),
+            }
+        }
+        _ => todo!(),
+    }
+}
+
+fn generate_preamble<W: Write>(out: &mut W) -> io::Result<()> {
     writeln!(out, ".global _main")?;
     writeln!(out, ".align 2")?;
+    writeln!(out)?;
     Ok(())
 }
 
-fn generate_epilogue(mut out: impl Write, status: u8) -> io::Result<()> {
-    writeln!(out, "    ; exit({})", status)?;
-    writeln!(out, "    mov     x0, #{}", status)?;
-    writeln!(out, "    mov     x16, #1")?;
-    writeln!(out, "    svc     #0x80")?;
+fn generate_function_prologue<W: Write>(out: &mut W) -> io::Result<()> {
+    writeln!(out, "    ; prologue")?;
+    writeln!(out, "    stp     x29, x30, [sp, #-16]!")?;
+    writeln!(out, "    mov     x29, sp")?;
     Ok(())
 }
 
-fn generate_data(mut out: impl Write, strings: Vec<String>) -> io::Result<()> {
+fn generate_function_epilogue<W: Write>(out: &mut W) -> io::Result<()> {
+    writeln!(out, "    ; epilogue")?;
+    writeln!(out, "    mov     sp, x29")?;
+    writeln!(out, "    ldp     x29, x30, [sp], #16")?;
+    writeln!(out, "    ret")?;
+    Ok(())
+}
+
+fn generate_data<W: Write>(out: &mut W, strings: Vec<String>) -> io::Result<()> {
+    if strings.len() < 1 {
+        return Ok(());
+    }
+
+    writeln!(out)?;
+    writeln!(out, "; data section")?;
     for (i, s) in strings.iter().enumerate() {
         writeln!(out, "strings.{}:", i)?;
         writeln!(out, "    .ascii \"{}\\n\"", s)?;
