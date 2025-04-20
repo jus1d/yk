@@ -2,6 +2,7 @@ use crate::diag;
 
 use std::fmt;
 use std::iter::Peekable;
+use std::path::Path;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum TokenKind {
@@ -85,7 +86,14 @@ pub struct Loc {
 }
 
 impl Loc {
-    pub fn new(filename: &str, line: usize, col: usize) -> Self {
+    pub fn new(path: &str, line: usize, col: usize) -> Self {
+        let filename = Path::new(path)
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or_else(|| {
+                diag::fatal!("invalid path: {path}");
+            });
+
         Loc {
             filename: filename.to_string(),
             line,

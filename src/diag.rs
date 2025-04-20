@@ -19,15 +19,13 @@ macro_rules! fatal {
 macro_rules! error {
     ($msg:literal $(, $arg:expr)* $(,)?) => {{
         $crate::colors!();
-        eprintln!("{BOLD}{RED}error:{RESET}{BOLD} {}{RESET}", format!($msg $(, $arg)*))
+        eprintln!("{BOLD}{RED}error:{RESET}{BOLD} {}{RESET}", format!($msg $(, $arg)*));
     }};
 
     ($loc:expr, $($arg:tt)*) => {{
         $crate::colors!();
-        eprintln!("{BOLD}{}: {RED}error:{RESET}{BOLD} {}{RESET}", $loc, format!($($arg)*))
+        eprintln!("{BOLD}{}: {RED}error:{RESET}{BOLD} {}{RESET}", $loc, format!($($arg)*));
     }};
 }
 
-// Re-export macros at module level
-pub use error;
-pub use fatal;
+pub use {error, fatal};

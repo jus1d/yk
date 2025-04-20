@@ -1,4 +1,4 @@
 fn main() {
-    println("helloooooo");
-    ret 69;
+    println("helloooAooo");
+    69;
 }
