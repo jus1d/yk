@@ -70,12 +70,16 @@ fn generate_statement<W: Write>(out: &mut W, statement: &Statement, strings: &mu
 
 fn generate_expression<W: Write>(out: &mut W, expr: &Expr) -> io::Result<()> {
     match expr {
-        Expr::Number(n) => writeln!(out, "    mov     x0, {}", n),
+        Expr::Number(n) => {
+            writeln!(out, "    ; number: {}", n)?;
+            writeln!(out, "    mov     x0, {}", n)
+        }
         Expr::Binary { op, lhs, rhs } => {
             generate_expression(out, lhs)?;
-            writeln!(out, "    str     x0, [sp, #-16]!")?;
+            writeln!(out, "    str     x0, [sp, -16]!")?;
             generate_expression(out, rhs)?;
-            writeln!(out, "    ldr     x1, [sp], #16")?;
+            writeln!(out, "    ldr     x1, [sp], 16")?;
+            writeln!(out, "    ; binop: {} {} {}", lhs, op, rhs)?;
             match op {
                 BinaryOp::Add => writeln!(out, "    add     x0, x1, x0"),
                 BinaryOp::Sub => writeln!(out, "    sub     x0, x1, x0"),
@@ -96,7 +100,7 @@ fn generate_preamble<W: Write>(out: &mut W) -> io::Result<()> {
 
 fn generate_function_prologue<W: Write>(out: &mut W) -> io::Result<()> {
     writeln!(out, "    ; prologue")?;
-    writeln!(out, "    stp     x29, x30, [sp, #-16]!")?;
+    writeln!(out, "    stp     x29, x30, [sp, -16]!")?;
     writeln!(out, "    mov     x29, sp")?;
     Ok(())
 }
@@ -104,7 +108,7 @@ fn generate_function_prologue<W: Write>(out: &mut W) -> io::Result<()> {
 fn generate_function_epilogue<W: Write>(out: &mut W) -> io::Result<()> {
     writeln!(out, "    ; epilogue")?;
     writeln!(out, "    mov     sp, x29")?;
-    writeln!(out, "    ldp     x29, x30, [sp], #16")?;
+    writeln!(out, "    ldp     x29, x30, [sp], 16")?;
     writeln!(out, "    ret")?;
     Ok(())
 }
