@@ -33,13 +33,15 @@ pub fn check_collisions_with_builtin(program: &parser::Program) {
             match statement {
                 parser::Statement::Funcall { name, args } => {
                     if builtins.contains_key(name.as_str()) {
-                        if args.len() != builtins[name.as_str()].params.len() {
-                            diag::fatal!("function '{name}' expects {} arguments but got {}", builtins[name.as_str()].params.len(), args.len());
+                        if args.len() > builtins[name.as_str()].params.len() {
+                            diag::fatal!("too many arguments to function call '{name}', expected {} arguments, have {}", builtins[name.as_str()].params.len(), args.len());
+                        } else if args.len() < builtins[name.as_str()].params.len() {
+                            diag::fatal!("too few arguments to function call '{name}', expected {} arguments, have {}", builtins[name.as_str()].params.len(), args.len());
                         }
 
                         // TODO: type check function arguments
                     } else {
-                        diag::fatal!("function '{name}' is not defined");
+                        diag::fatal!("call to undeclared function '{name}'");
                     }
                 }
                 _ => {}

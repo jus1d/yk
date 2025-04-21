@@ -1,5 +1,5 @@
-fn exit(int64 a, int64 b) int64 {
-    ret (((a + b) * (a - 1)) / 4) * 69;
+fn sum(int64 a, int64 b) int64 {
+    ret a + b;
 }
 
 fn main() {
