@@ -38,6 +38,8 @@ pub fn check_collisions_with_builtin(program: &parser::Program) {
                         }
 
                         // TODO: type check function arguments
+                    } else {
+                        diag::fatal!("function '{name}' is not defined");
                     }
                 }
                 _ => {}
