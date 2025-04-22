@@ -9,9 +9,9 @@ use std::io::Write;
 
 #[allow(unreachable_patterns)]
 pub fn generate_asm_aarch64_darwin<W: Write>(out: &mut W, program: &Program) -> io::Result<()> {
-    for function in &program.functions {
-        if &function.name != "main" {
-            diag::warning!("compiling only main function is implemented. skipping '{}'...", function.name);
+    for (name, function) in &program.functions {
+        if name != "main" {
+            diag::warning!("compiling only main function is implemented. skipping '{}'...", name);
             continue;
         }
 

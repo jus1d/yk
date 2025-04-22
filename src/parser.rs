@@ -1,13 +1,14 @@
 use crate::lexer::{Token, TokenKind};
 use crate::diag;
 
+use std::collections::HashMap;
 use std::fmt;
 use std::iter::Peekable;
 
 #[allow(dead_code)]
 #[derive(Debug)]
 pub struct Program {
-    pub functions: Vec<Function>,
+    pub functions: HashMap<String, Function>
 }
 
 #[allow(dead_code)]
@@ -71,10 +72,10 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
     }
 
     pub fn parse_program(&mut self) -> Program {
-        let mut program = Program { functions: vec![] };
+        let mut program = Program { functions: HashMap::new() };
 
         while let Some(function) = self.parse_fn() {
-            program.functions.push(function);
+            program.functions.insert(function.name.clone(), function);
         }
 
         return program;
@@ -362,7 +363,7 @@ fn get_op_precedence(op: &BinaryOp) -> u8 {
 
 impl fmt::Display for Program {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for (i, function) in self.functions.iter().enumerate() {
+        for (i, (_, function)) in self.functions.iter().enumerate() {
             write!(f, "{}", function)?;
             if i != self.functions.len() - 1 {
                 writeln!(f, "\n")?;

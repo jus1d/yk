@@ -23,10 +23,9 @@ pub fn check_collisions_with_builtin(program: &parser::Program) {
         }),
     ]);
 
-    for function in &program.functions {
-        let name = function.name.as_str();
-        if builtins.contains_key(name) {
-            diag::fatal!("name '{name}' is a builtin function name");
+    for (name, function) in &program.functions {
+        if builtins.contains_key(name.as_str()) {
+            diag::fatal!("symbol '{name}' is a builtin function name");
         }
 
         for statement in &function.body {
