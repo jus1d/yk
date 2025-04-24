@@ -1,4 +1,4 @@
-use std::env::Args;
+use std::{env::Args, process::exit};
 
 use crate::diag;
 
@@ -45,6 +45,7 @@ impl Opts {
                 },
                 "-h" | "--help" => {
                     usage!(opts.program_name);
+                    exit(0);
                 },
                 _ => {
                     opts.input_file_path = arg;
