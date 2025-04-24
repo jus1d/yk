@@ -25,7 +25,8 @@ fn main() {
 
     if cfg![target_arch = "aarch64"] {
         let mut stdout = io::stdout().lock();
-        compiler::generate_asm_aarch64_darwin(&mut stdout, &program).unwrap();
+        let compiler = compiler::Compiler::new(program);
+        compiler.generate_asm_aarch64_darwin(&mut stdout).unwrap();
     } else {
         diag::fatal!("unsupported architecture. only `aarch64` is supported now");
     }

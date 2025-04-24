@@ -6,13 +6,13 @@ use std::fmt;
 use std::iter::Peekable;
 
 #[allow(dead_code)]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Program {
     pub functions: HashMap<String, Function>
 }
 
 #[allow(dead_code)]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Function {
     pub name: String,
     pub ret_type: String,
@@ -21,21 +21,21 @@ pub struct Function {
 }
 
 #[allow(dead_code)]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Param {
     pub name: String,
     pub typ: String,
 }
 
 #[allow(dead_code)]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Statement {
     Funcall { name: String, args: Vec<Expr> },
     Ret { value: Option<Expr> },
 }
 
 // TODO: Move number and string to literal
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub enum Expr {
     Variable(String),
@@ -52,7 +52,7 @@ pub enum Expr {
     },
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum BinaryOp {
     Add,
     Sub,
