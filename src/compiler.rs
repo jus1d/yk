@@ -1,4 +1,4 @@
-use crate::parser::{Ast, Function, Statement, BinaryOp, Expr};
+use crate::parser::{Ast, Function, Statement, BinaryOp, Expr, Literal};
 
 use std::io;
 use std::io::Write;
@@ -109,7 +109,7 @@ impl Compiler {
                 match name.as_str() {
                     "println" => {
                         let text = match &args[0] {
-                            Expr::String(s) => s.as_str(),
+                            Expr::Literal(Literal::String(s)) => s.as_str(),
                             _ => ""
                         };
                         strings.push(text.to_string());
@@ -118,7 +118,7 @@ impl Compiler {
                     }
                     "exit" => {
                         let code: i64 = match &args[0] {
-                            Expr::Number(n) => *n,
+                            Expr::Literal(Literal::Number(n)) => *n,
                             _ => 69,
                         };
                         self.generate_exit(out, code as u8)?;
@@ -139,9 +139,8 @@ impl Compiler {
 
     fn generate_expression<W: Write>(&self, out: &mut W, expr: &Expr, current_func_name: String) -> io::Result<()> {
         match expr {
-            Expr::Number(n) => {
-                writeln!(out, "    ; number: {}", n)?;
-                writeln!(out, "    mov     x0, {}", n)?;
+            Expr::Literal(lit) => {
+                self.generate_literal(out, lit)?;
             }
             Expr::Binary { op, lhs, rhs } => {
                 self.generate_expression(out, lhs, current_func_name.clone())?;
@@ -175,7 +174,17 @@ impl Compiler {
                 writeln!(out, "    ; variable {}", name)?;
                 writeln!(out, "    mov     x0, x{}", self.get_variable_position(current_func_name.as_str(), name))?;
             },
-            Expr::String(_) => todo!(),
+        }
+        Ok(())
+    }
+
+    fn generate_literal<W: Write>(&self, out: &mut W, lit: &Literal) -> io::Result<()> {
+        match lit {
+            Literal::Number(n) => {
+                writeln!(out, "    ; number: {}", n)?;
+                writeln!(out, "    mov     x0, {}", n)?;
+            },
+            Literal::String(_) => todo!("string literals"),
         }
         Ok(())
     }

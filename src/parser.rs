@@ -5,13 +5,11 @@ use std::collections::HashMap;
 use std::fmt;
 use std::iter::Peekable;
 
-#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct Ast {
     pub functions: HashMap<String, Function>
 }
 
-#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct Function {
     pub name: String,
@@ -20,27 +18,28 @@ pub struct Function {
     pub body: Vec<Statement>,
 }
 
-#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct Param {
     pub name: String,
     pub typ: String,
 }
 
-#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub enum Statement {
     Funcall { name: String, args: Vec<Expr> },
     Ret { value: Option<Expr> },
 }
 
-// TODO: Move number and string to literal
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
-pub enum Expr {
-    Variable(String),
+pub enum Literal {
     Number(i64),
     String(String),
+}
+
+#[derive(Debug, Clone)]
+pub enum Expr {
+    Variable(String),
+    Literal(Literal),
     Funcall {
         name: String,
         args: Vec<Expr>,
@@ -243,8 +242,8 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
     fn parse_primary_expr(&mut self) -> Expr {
         if let Some(token) = self.tokens.next() {
             match token.kind {
-                TokenKind::Number => return Expr::Number(token.number),
-                TokenKind::String => return Expr::String(token.text),
+                TokenKind::Number => return Expr::Literal(Literal::Number(token.number)),
+                TokenKind::String => return Expr::Literal(Literal::String(token.text)),
                 TokenKind::Word => {
                     if self.tokens.peek().is_none() {
                         return Expr::Variable(token.text);
@@ -414,13 +413,21 @@ impl fmt::Display for Statement {
     }
 }
 
+impl fmt::Display for Literal {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Literal::Number(value) => write!(f, "{}", value),
+            Literal::String(content) => write!(f, "\"{}\"", content),
+        }
+    }
+}
+
 #[allow(unreachable_patterns)]
 impl fmt::Display for Expr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Expr::Variable(ident) => write!(f, "{}", ident),
-            Expr::Number(value) => write!(f, "{}", value),
-            Expr::String(value) => write!(f, "\"{}\"", value),
+            Expr::Literal(lit) => write!(f, "{}", lit),
             Expr::Funcall { name, args } => {
                 write!(f, "{}(", name)?;
                 for (i, arg) in args.iter().enumerate() {
