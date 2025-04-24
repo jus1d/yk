@@ -1,18 +1,14 @@
-use crate::parser::BinaryOp;
-use crate::parser::Expr;
-use crate::parser::Function;
-use crate::parser::Program;
-use crate::parser::Statement;
+use crate::parser::{Ast, Function, Statement, BinaryOp, Expr};
 
 use std::io;
 use std::io::Write;
 
 pub struct Compiler {
-    ast: Program,
+    ast: Ast,
 }
 
 impl Compiler {
-    pub fn new(ast: Program) -> Self {
+    pub fn new(ast: Ast) -> Self {
         Compiler {
             ast: ast.clone(),
         }

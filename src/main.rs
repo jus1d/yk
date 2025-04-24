@@ -21,12 +21,12 @@ fn main() {
     let lexer = lexer::Lexer::new(source.chars(), &opts.input_file_path);
     let mut parser = parser::Parser::from_iter(lexer);
 
-    let program = parser.parse_program();
-    analyzer::analyze(&program);
+    let ast = parser.parse_ast();
+    analyzer::analyze(&ast);
 
     if cfg![target_arch = "aarch64"] {
         let mut stdout = io::stdout().lock();
-        let compiler = compiler::Compiler::new(program);
+        let compiler = compiler::Compiler::new(ast);
         compiler.generate_asm_aarch64_darwin(&mut stdout).unwrap();
     } else {
         diag::fatal!("unsupported architecture. only `aarch64` is supported now");

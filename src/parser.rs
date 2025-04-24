@@ -7,7 +7,7 @@ use std::iter::Peekable;
 
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
-pub struct Program {
+pub struct Ast {
     pub functions: HashMap<String, Function>
 }
 
@@ -71,8 +71,8 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
         }
     }
 
-    pub fn parse_program(&mut self) -> Program {
-        let mut program = Program { functions: HashMap::new() };
+    pub fn parse_ast(&mut self) -> Ast {
+        let mut program = Ast { functions: HashMap::new() };
 
         while let Some(function) = self.parse_fn() {
             program.functions.insert(function.name.clone(), function);
@@ -361,7 +361,7 @@ fn get_op_precedence(op: &BinaryOp) -> u8 {
     }
 }
 
-impl fmt::Display for Program {
+impl fmt::Display for Ast {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for (i, (_, function)) in self.functions.iter().enumerate() {
             write!(f, "{}", function)?;

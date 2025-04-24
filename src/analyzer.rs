@@ -1,14 +1,14 @@
 use std::collections::HashMap;
 
-use crate::parser::{Program, Statement, Function, Param};
+use crate::parser::{Ast, Statement, Function, Param};
 use crate::diag;
 
-pub fn analyze(program: &Program) {
-    check_entrypoint_declaration(program);
-    check_collisions_with_builtin(program);
+pub fn analyze(ast: &Ast) {
+    check_entrypoint_declaration(ast);
+    check_collisions_with_builtin(ast);
 }
 
-fn check_collisions_with_builtin(program: &Program) {
+fn check_collisions_with_builtin(ast: &Ast) {
     let builtins = HashMap::from([
         ("println", Function {
             name: String::from("println"),
@@ -30,7 +30,7 @@ fn check_collisions_with_builtin(program: &Program) {
         }),
     ]);
 
-    for (name, function) in &program.functions {
+    for (name, function) in &ast.functions {
         if builtins.contains_key(name.as_str()) {
             diag::fatal!("symbol '{name}' is a builtin function name");
         }
@@ -48,8 +48,8 @@ fn check_collisions_with_builtin(program: &Program) {
                         }
 
                         // TODO: type check function arguments
-                    } else if !program.functions.contains_key(name.as_str()) {
-                        let params_count = program.functions[name.as_str()].params.len();
+                    } else if !ast.functions.contains_key(name.as_str()) {
+                        let params_count = ast.functions[name.as_str()].params.len();
                         if args.len() > params_count {
                             diag::fatal!("too many arguments to function call '{name}', expected {} arguments, have {}", builtins[name.as_str()].params.len(), args.len());
                         } else if args.len() < params_count {
@@ -69,12 +69,12 @@ fn check_collisions_with_builtin(program: &Program) {
     }
 }
 
-fn check_entrypoint_declaration(program: &Program) {
-    if !program.functions.contains_key("main") {
+fn check_entrypoint_declaration(ast: &Ast) {
+    if !ast.functions.contains_key("main") {
         diag::fatal!("entry point not declared. expected: 'fn main() int64'");
     }
 
-    let func = program.functions.get("main").unwrap();
+    let func = ast.functions.get("main").unwrap();
     if func.params.len() > 0 {
         diag::fatal!("function 'main' should not have parameters");
     }
