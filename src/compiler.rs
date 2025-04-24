@@ -3,7 +3,6 @@ use crate::parser::Expr;
 use crate::parser::Function;
 use crate::parser::Program;
 use crate::parser::Statement;
-use crate::diag;
 
 use std::io;
 use std::io::Write;
@@ -63,8 +62,12 @@ fn generate_statement<W: Write>(out: &mut W, statement: &Statement, strings: &mu
                     generate_exit(out, code as u8)?;
                 }
                 _ => {
-                    diag::warning!("calling only `println` and `exit` functions as statements is supported yet. skipping...");
-                    return Ok(());
+                    for (i, arg) in args.iter().rev().enumerate() {
+                        generate_expression(out, arg)?;
+                        writeln!(out, "    mov     x{}, x0", i)?;
+                    }
+                    writeln!(out, "    ; call {}", name)?;
+                    writeln!(out, "    bl      _{}", name)?;
                 }
             }
         }
@@ -97,7 +100,7 @@ fn generate_expression<W: Write>(out: &mut W, expr: &Expr) -> io::Result<()> {
     match expr {
         Expr::Number(n) => {
             writeln!(out, "    ; number: {}", n)?;
-            writeln!(out, "    mov     x0, {}", n)
+            writeln!(out, "    mov     x0, {}", n)?;
         }
         Expr::Binary { op, lhs, rhs } => {
             generate_expression(out, lhs)?;
@@ -108,10 +111,10 @@ fn generate_expression<W: Write>(out: &mut W, expr: &Expr) -> io::Result<()> {
             writeln!(out, "    ldr     x1, [sp], 16")?;
             writeln!(out, "    ; binop: {} {} {}", lhs, op, rhs)?;
             match op {
-                BinaryOp::Add => writeln!(out, "    add     x0, x1, x0"),
-                BinaryOp::Sub => writeln!(out, "    sub     x0, x1, x0"),
-                BinaryOp::Mul => writeln!(out, "    mul     x0, x1, x0"),
-                BinaryOp::Div => writeln!(out, "    sdiv    x0, x1, x0"),
+                BinaryOp::Add => writeln!(out, "    add     x0, x1, x0")?,
+                BinaryOp::Sub => writeln!(out, "    sub     x0, x1, x0")?,
+                BinaryOp::Mul => writeln!(out, "    mul     x0, x1, x0")?,
+                BinaryOp::Div => writeln!(out, "    sdiv    x0, x1, x0")?,
             }
         },
         Expr::Funcall { name, args } => {
@@ -120,10 +123,11 @@ fn generate_expression<W: Write>(out: &mut W, expr: &Expr) -> io::Result<()> {
                 writeln!(out, "    mov     x{}, x0", i)?;
             }
             writeln!(out, "    ; call {}", name)?;
-            writeln!(out, "    bl      _{}", name)
+            writeln!(out, "    bl      _{}", name)?;
         },
         _ => todo!("{}", expr),
     }
+    Ok(())
 }
 
 fn generate_preamble<W: Write>(out: &mut W) -> io::Result<()> {

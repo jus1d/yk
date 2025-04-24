@@ -1,8 +1,9 @@
 fn sum() int64 {
+    println("Hello, World!");
     ret 34 + 35;
 }
 
 fn main() {
-    println("Hello, World!");
-    ret sum();
+    sum();
+    ret 0;
 }

@@ -39,7 +39,7 @@ pub fn check_collisions_with_builtin(program: &parser::Program) {
                         }
 
                         // TODO: type check function arguments
-                    } else {
+                    } else if !program.functions.contains_key(name.as_str()) {
                         diag::fatal!("call to undeclared function '{name}'");
                     }
                 }
