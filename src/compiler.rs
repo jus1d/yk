@@ -1,5 +1,6 @@
 use crate::parser::BinaryOp;
 use crate::parser::Expr;
+use crate::parser::Function;
 use crate::parser::Program;
 use crate::parser::Statement;
 use crate::diag;
@@ -9,26 +10,26 @@ use std::io::Write;
 
 #[allow(unreachable_patterns)]
 pub fn generate_asm_aarch64_darwin<W: Write>(out: &mut W, program: &Program) -> io::Result<()> {
-    for (name, function) in &program.functions {
-        if name != "main" {
-            diag::warning!("compiling only main function is implemented. skipping '{}'...", name);
-            continue;
-        }
+    let mut strings = Vec::<String>::new();
 
-        let mut strings = Vec::<String>::new();
-
-        generate_preamble(out)?;
-
-        writeln!(out, "_main:")?;
-        generate_function_prologue(out)?;
-
-        for statement in &function.body {
-            generate_statement(out, statement, &mut strings)?;
-        }
-
-        generate_function_epilogue(out)?;
-        generate_data(out, strings)?;
+    generate_preamble(out)?;
+    for (_, function) in &program.functions {
+        generate_function(out, &mut strings, function)?;
     }
+    generate_data(out, &strings)?;
+    Ok(())
+}
+
+fn generate_function<W: Write>(out: &mut W, strings: &mut Vec<String>, function: &Function) -> io::Result<()> {
+    writeln!(out, "; function {}", function.name)?;
+    writeln!(out, "_{}:", function.name)?;
+
+    generate_function_prologue(out)?;
+    for statement in &function.body {
+        generate_statement(out, statement, strings)?;
+    }
+    generate_function_epilogue(out)?;
+
     Ok(())
 }
 
@@ -62,7 +63,7 @@ fn generate_statement<W: Write>(out: &mut W, statement: &Statement, strings: &mu
                     generate_exit(out, code as u8)?;
                 }
                 _ => {
-                    diag::warning!("calling only `println` function is supported yet. skipping...");
+                    diag::warning!("calling only `println` and `exit` functions as statements is supported yet. skipping...");
                     return Ok(());
                 }
             }
@@ -100,8 +101,10 @@ fn generate_expression<W: Write>(out: &mut W, expr: &Expr) -> io::Result<()> {
         }
         Expr::Binary { op, lhs, rhs } => {
             generate_expression(out, lhs)?;
+            writeln!(out, "    ; store {}", lhs)?;
             writeln!(out, "    str     x0, [sp, -16]!")?;
             generate_expression(out, rhs)?;
+            writeln!(out, "    ; load {}", lhs)?;
             writeln!(out, "    ldr     x1, [sp], 16")?;
             writeln!(out, "    ; binop: {} {} {}", lhs, op, rhs)?;
             match op {
@@ -110,8 +113,16 @@ fn generate_expression<W: Write>(out: &mut W, expr: &Expr) -> io::Result<()> {
                 BinaryOp::Mul => writeln!(out, "    mul     x0, x1, x0"),
                 BinaryOp::Div => writeln!(out, "    sdiv    x0, x1, x0"),
             }
-        }
-        _ => todo!(),
+        },
+        Expr::Funcall { name, args } => {
+            for (i, arg) in args.iter().rev().enumerate() {
+                generate_expression(out, arg)?;
+                writeln!(out, "    mov     x{}, x0", i)?;
+            }
+            writeln!(out, "    ; call {}", name)?;
+            writeln!(out, "    bl      _{}", name)
+        },
+        _ => todo!("{}", expr),
     }
 }
 
@@ -137,7 +148,7 @@ fn generate_function_epilogue<W: Write>(out: &mut W) -> io::Result<()> {
     Ok(())
 }
 
-fn generate_data<W: Write>(out: &mut W, strings: Vec<String>) -> io::Result<()> {
+fn generate_data<W: Write>(out: &mut W, strings: &Vec<String>) -> io::Result<()> {
     if strings.len() < 1 {
         return Ok(());
     }
