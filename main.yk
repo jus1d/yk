@@ -4,6 +4,5 @@ fn sum() int64 {
 }
 
 fn main() {
-    sum();
-    ret 0;
+    ret sum();
 }
