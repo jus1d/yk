@@ -1,15 +1,15 @@
 use std::collections::HashMap;
 
-use crate::parser::{Ast, Statement, Function, Param};
+use crate::parser::{Ast, Statement, Function, Param, Expr};
 use crate::diag;
 
 pub fn analyze(ast: &Ast) {
     check_entrypoint_declaration(ast);
-    check_collisions_with_builtin(ast);
+    check_funcs_and_calls(ast);
 }
 
-fn check_collisions_with_builtin(ast: &Ast) {
-    let builtins = HashMap::from([
+fn check_funcs_and_calls(ast: &Ast) {
+    let builtin_funcs = HashMap::from([
         ("println", Function {
             name: String::from("println"),
             ret_type: String::from("void"),
@@ -30,42 +30,47 @@ fn check_collisions_with_builtin(ast: &Ast) {
         }),
     ]);
 
-    for (name, function) in &ast.functions {
-        if builtins.contains_key(name.as_str()) {
+    for (name, _) in &ast.functions {
+        if builtin_funcs.contains_key(name.as_str()) {
             diag::fatal!("symbol '{name}' is a builtin function name");
         }
+    }
 
+    for function in ast.functions.values() {
         for statement in &function.body {
             match statement {
                 Statement::Funcall { name, args } => {
-                    // TODO: factor args checking into a separate function
-                    if builtins.contains_key(name.as_str()) {
-                        let params_count = builtins[name.as_str()].params.len();
-                        if args.len() > params_count {
-                            diag::fatal!("too many arguments to function call '{name}', expected {} arguments, have {}", builtins[name.as_str()].params.len(), args.len());
-                        } else if args.len() < params_count {
-                            diag::fatal!("too few arguments to function call '{name}', expected {} arguments, have {}", builtins[name.as_str()].params.len(), args.len());
-                        }
-
-                        // TODO: type check function arguments
-                    } else if !ast.functions.contains_key(name.as_str()) {
-                        let params_count = ast.functions[name.as_str()].params.len();
-                        if args.len() > params_count {
-                            diag::fatal!("too many arguments to function call '{name}', expected {} arguments, have {}", builtins[name.as_str()].params.len(), args.len());
-                        } else if args.len() < params_count {
-                            diag::fatal!("too few arguments to function call '{name}', expected {} arguments, have {}", builtins[name.as_str()].params.len(), args.len());
-                        }
-
-                        // TODO: type check function arguments
-                    } else {
-                        diag::fatal!("call to undeclared function '{name}'");
-                    }
+                    validate_funcall(name, args, &builtin_funcs, &ast.functions);
                 },
                 Statement::Ret { value: _ } => {
-                    // TODO: check return type
+                    // TODO: check return type matches function's declared return type
                 }
             }
         }
+    }
+}
+
+fn validate_funcall(name: &str, args: &[Expr], builtin_funcs: &HashMap<&str, Function>, user_funcs: &HashMap<String, Function>) {
+    // TODO: type check function arguments against expected params
+    if builtin_funcs.contains_key(name) {
+        let expected_params = &builtin_funcs[name].params;
+        check_arguments_count(name, args.len(), expected_params.len());
+    } else if let Some(user_func) = user_funcs.get(name) {
+        check_arguments_count(name, args.len(), user_func.params.len());
+    } else {
+        diag::fatal!("call to undeclared function '{name}'");
+    }
+}
+
+fn check_arguments_count(func_name: &str, actual: usize, expected: usize) {
+    match actual.cmp(&expected) {
+        std::cmp::Ordering::Greater => {
+            diag::fatal!("too many arguments to function call '{func_name}', expected {expected} arguments, have {actual}");
+        }
+        std::cmp::Ordering::Less => {
+            diag::fatal!("too few arguments to function call '{func_name}', expected {expected} arguments, have {actual}");
+        }
+        std::cmp::Ordering::Equal => {}
     }
 }
 
