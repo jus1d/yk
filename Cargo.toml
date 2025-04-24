@@ -3,4 +3,8 @@ name = "compiler"
 version = "0.1.0"
 edition = "2021"
 
+[[bin]]
+name = "ykc"
+path = "src/main.rs"
+
 [dependencies]

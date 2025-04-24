@@ -118,10 +118,10 @@ pub struct Lexer<Chars: Iterator<Item = char> + Clone> {
 }
 
 impl<Chars: Iterator<Item = char> + Clone> Lexer<Chars> {
-    pub fn new(chars: Chars, filename: String) -> Self {
+    pub fn new(chars: Chars, filename: &str) -> Self {
         Lexer {
             chars: chars.clone().peekable(),
-            filename,
+            filename: filename.to_string(),
             cur: 0,
             line: 0,
             bol: 0,

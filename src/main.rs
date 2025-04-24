@@ -1,23 +1,24 @@
-pub mod lexer;
-pub mod parser;
 pub mod compiler;
-pub mod diag;
 pub mod analyzer;
+pub mod parser;
+pub mod lexer;
+pub mod diag;
+pub mod opts;
 
 use std::io;
 use std::fs;
 
+use opts::Opts;
+
 fn main() {
-    let mut args = std::env::args();
-    let program = args.next().unwrap();
-    let filename = args.next().unwrap_or_else(|| {
-        eprintln!("Usage: {} <filename>", program);
-        diag::fatal!("no file path provided");
+    let args = std::env::args();
+    let opts = Opts::parse_args(args);
+
+    let source = fs::read_to_string(&opts.input_file_path).unwrap_or_else(|_| {
+        diag::fatal!("failed to read frome file '{}'", opts.input_file_path);
     });
 
-    let source = fs::read_to_string(filename.clone()).expect("Failed to read file");
-
-    let lexer = lexer::Lexer::new(source.chars(), filename.to_string());
+    let lexer = lexer::Lexer::new(source.chars(), &opts.input_file_path);
     let mut parser = parser::Parser::from_iter(lexer);
 
     let program = parser.parse_program();

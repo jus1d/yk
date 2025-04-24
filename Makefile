@@ -4,10 +4,10 @@ main: main.o
 main.o: main.s
 	as -arch arm64 -o main.o main.s
 
-main.s: main.yk target/release/compiler
-	./target/release/compiler ./main.yk > main.s
+main.s: main.yk target/release/ykc
+	./target/release/ykc ./main.yk > main.s
 
-target/release/compiler: src/main.rs src/lexer.rs src/parser.rs src/compiler.rs
+target/release/ykc: src/*.rs
 	cargo build --release
 
 clean:
