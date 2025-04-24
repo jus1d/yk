@@ -1,22 +1,28 @@
 use std::collections::HashMap;
-use crate::parser::Statement;
-use crate::{diag, parser};
 
-pub fn check_collisions_with_builtin(program: &parser::Program) {
+use crate::parser::{Program, Statement, Function, Param};
+use crate::diag;
+
+pub fn analyze(program: &Program) {
+    check_entrypoint_declaration(program);
+    check_collisions_with_builtin(program);
+}
+
+fn check_collisions_with_builtin(program: &Program) {
     let builtins = HashMap::from([
-        ("println", parser::Function {
+        ("println", Function {
             name: String::from("println"),
             ret_type: String::from("void"),
-            params: vec![parser::Param {
+            params: vec![Param {
                 name: String::from("message"),
                 typ: String::from("string"),
             }],
             body: vec![],
         }),
-        ("exit", parser::Function {
+        ("exit", Function {
             name: String::from("exit"),
             ret_type: String::from("never"),
-            params: vec![parser::Param {
+            params: vec![Param {
                 name: String::from("code"),
                 typ: String::from("int64"),
             }],
@@ -54,9 +60,25 @@ pub fn check_collisions_with_builtin(program: &parser::Program) {
                     } else {
                         diag::fatal!("call to undeclared function '{name}'");
                     }
+                },
+                Statement::Ret { value: _ } => {
+                    // TODO: check return type
                 }
-                _ => {}
             }
         }
+    }
+}
+
+fn check_entrypoint_declaration(program: &Program) {
+    if !program.functions.contains_key("main") {
+        diag::fatal!("entry point not declared. expected: 'fn main() int64'");
+    }
+
+    let func = program.functions.get("main").unwrap();
+    if func.params.len() > 0 {
+        diag::fatal!("function 'main' should not have parameters");
+    }
+    if func.ret_type.as_str() != "int64" {
+        diag::fatal!("unexpected main function declaration, expected 'fn main() int64'");
     }
 }

@@ -21,7 +21,7 @@ fn main() {
     let mut parser = parser::Parser::from_iter(lexer);
 
     let program = parser.parse_program();
-    analyzer::check_collisions_with_builtin(&program);
+    analyzer::analyze(&program);
 
     if cfg![target_arch = "aarch64"] {
         let mut stdout = io::stdout().lock();

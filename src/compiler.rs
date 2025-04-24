@@ -7,32 +7,86 @@ use crate::parser::Statement;
 use std::io;
 use std::io::Write;
 
-#[allow(unreachable_patterns)]
 pub fn generate_asm_aarch64_darwin<W: Write>(out: &mut W, program: &Program) -> io::Result<()> {
     let mut strings = Vec::<String>::new();
 
     generate_preamble(out)?;
     for (_, function) in &program.functions {
-        generate_function(out, &mut strings, function)?;
+        generate_func_body(out, &mut strings, function)?;
     }
-    generate_data(out, &strings)?;
+    generate_data_section(out, &strings)?;
     Ok(())
 }
 
-fn generate_function<W: Write>(out: &mut W, strings: &mut Vec<String>, function: &Function) -> io::Result<()> {
+fn generate_preamble<W: Write>(out: &mut W) -> io::Result<()> {
+    writeln!(out, ".global _main")?;
+    writeln!(out, ".align 2")?;
+    writeln!(out)?;
+    Ok(())
+}
+
+fn generate_func_prologue<W: Write>(out: &mut W) -> io::Result<()> {
+    writeln!(out, "    ; prologue")?;
+    writeln!(out, "    stp     x29, x30, [sp, -16]!")?;
+    writeln!(out, "    mov     x29, sp")?;
+    Ok(())
+}
+
+fn generate_func_body<W: Write>(out: &mut W, strings: &mut Vec<String>, function: &Function) -> io::Result<()> {
     writeln!(out, "; function {}", function.name)?;
     writeln!(out, "_{}:", function.name)?;
 
-    generate_function_prologue(out)?;
+    generate_func_prologue(out)?;
     for statement in &function.body {
         generate_statement(out, statement, strings)?;
     }
-    generate_function_epilogue(out)?;
+    generate_func_epilogue(out)?;
 
     Ok(())
 }
 
-#[allow(unreachable_patterns)]
+fn generate_func_epilogue<W: Write>(out: &mut W) -> io::Result<()> {
+    writeln!(out, "    ; epilogue")?;
+    writeln!(out, "    mov     sp, x29")?;
+    writeln!(out, "    ldp     x29, x30, [sp], 16")?;
+    writeln!(out, "    ret")?;
+    Ok(())
+}
+
+fn generate_data_section<W: Write>(out: &mut W, strings: &Vec<String>) -> io::Result<()> {
+    if strings.len() < 1 {
+        return Ok(());
+    }
+
+    writeln!(out)?;
+    writeln!(out, "; data section")?;
+    for (i, s) in strings.iter().enumerate() {
+        writeln!(out, "string.{}:", i)?;
+        writeln!(out, "    .ascii \"{}\\n\"", s)?;
+    }
+    Ok(())
+}
+
+fn generate_println<W: Write>(out: &mut W, text: &str, idx: usize) -> io::Result<()> {
+    let length = text.len();
+    writeln!(out, "    ; println(\"{}\")", text)?;
+    writeln!(out, "    mov     x0, 1")?;
+    writeln!(out, "    adrp    x1, string.{}@PAGE", idx)?;
+    writeln!(out, "    add     x1, x1, string.{}@PAGEOFF", idx)?;
+    writeln!(out, "    mov     x2, {}", length + 1)?; // +1 for \n
+    writeln!(out, "    mov     x16, 4")?;
+    writeln!(out, "    svc     0x80")?;
+    Ok(())
+}
+
+fn generate_exit<W: Write>(out: &mut W, code: u8) -> io::Result<()> {
+    writeln!(out, "    ; exit({})", code)?;
+    writeln!(out, "    mov     x0, {}", code)?;
+    writeln!(out, "    mov     x16, 1")?;
+    writeln!(out, "    svc     0x80")?;
+    Ok(())
+}
+
 fn generate_statement<W: Write>(out: &mut W, statement: &Statement, strings: &mut Vec<String>) -> io::Result<()> {
     match statement {
         Statement::Ret { value } => {
@@ -58,7 +112,6 @@ fn generate_statement<W: Write>(out: &mut W, statement: &Statement, strings: &mu
                         Expr::Number(n) => *n,
                         _ => 69,
                     };
-
                     generate_exit(out, code as u8)?;
                 }
                 _ => {
@@ -71,28 +124,7 @@ fn generate_statement<W: Write>(out: &mut W, statement: &Statement, strings: &mu
                 }
             }
         }
-        _ => todo!()
     }
-    Ok(())
-}
-
-fn generate_println<W: Write>(out: &mut W, text: &str, idx: usize) -> io::Result<()> {
-    let length = text.len();
-    writeln!(out, "    ; println(\"{}\")", text)?;
-    writeln!(out, "    mov     x0, 1")?;
-    writeln!(out, "    adrp    x1, strings.{}@PAGE", idx)?;
-    writeln!(out, "    add     x1, x1, strings.{}@PAGEOFF", idx)?;
-    writeln!(out, "    mov     x2, {}", length + 1)?; // +1 for \n
-    writeln!(out, "    mov     x16, 4")?;
-    writeln!(out, "    svc     0x80")?;
-    Ok(())
-}
-
-fn generate_exit<W: Write>(out: &mut W, code: u8) -> io::Result<()> {
-    writeln!(out, "    ; exit({})", code)?;
-    writeln!(out, "    mov     x0, {}", code)?;
-    writeln!(out, "    mov     x16, 1")?;
-    writeln!(out, "    svc     0x80")?;
     Ok(())
 }
 
@@ -125,43 +157,7 @@ fn generate_expression<W: Write>(out: &mut W, expr: &Expr) -> io::Result<()> {
             writeln!(out, "    ; call {}", name)?;
             writeln!(out, "    bl      _{}", name)?;
         },
-        _ => todo!("{}", expr),
-    }
-    Ok(())
-}
-
-fn generate_preamble<W: Write>(out: &mut W) -> io::Result<()> {
-    writeln!(out, ".global _main")?;
-    writeln!(out, ".align 2")?;
-    writeln!(out)?;
-    Ok(())
-}
-
-fn generate_function_prologue<W: Write>(out: &mut W) -> io::Result<()> {
-    writeln!(out, "    ; prologue")?;
-    writeln!(out, "    stp     x29, x30, [sp, -16]!")?;
-    writeln!(out, "    mov     x29, sp")?;
-    Ok(())
-}
-
-fn generate_function_epilogue<W: Write>(out: &mut W) -> io::Result<()> {
-    writeln!(out, "    ; epilogue")?;
-    writeln!(out, "    mov     sp, x29")?;
-    writeln!(out, "    ldp     x29, x30, [sp], 16")?;
-    writeln!(out, "    ret")?;
-    Ok(())
-}
-
-fn generate_data<W: Write>(out: &mut W, strings: &Vec<String>) -> io::Result<()> {
-    if strings.len() < 1 {
-        return Ok(());
-    }
-
-    writeln!(out)?;
-    writeln!(out, "; data section")?;
-    for (i, s) in strings.iter().enumerate() {
-        writeln!(out, "strings.{}:", i)?;
-        writeln!(out, "    .ascii \"{}\\n\"", s)?;
+        _ => todo!(),
     }
     Ok(())
 }

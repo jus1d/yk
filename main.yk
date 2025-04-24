@@ -3,6 +3,6 @@ fn sum() int64 {
     ret 34 + 35;
 }
 
-fn main() {
+fn main() int64 {
     ret sum();
 }
