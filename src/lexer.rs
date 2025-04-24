@@ -4,7 +4,7 @@ use std::fmt;
 use std::iter::Peekable;
 use std::path::Path;
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(PartialEq, Eq, Clone, Copy)]
 pub enum TokenKind {
     Word,
     Number,
@@ -24,7 +24,6 @@ pub enum TokenKind {
     Slash,
 }
 
-#[allow(unreachable_patterns)]
 impl fmt::Display for TokenKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
@@ -44,13 +43,11 @@ impl fmt::Display for TokenKind {
                 TokenKind::Minus => "`-`",
                 TokenKind::Star => "`*`",
                 TokenKind::Slash => "`/`",
-                _ => unreachable!(),
             }
         )
     }
 }
 
-#[derive(Debug)]
 pub struct Token {
     pub kind: TokenKind,
     pub text: String,
@@ -78,7 +75,7 @@ impl Token {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Loc {
     pub filename: String,
     pub line: usize,
@@ -108,7 +105,6 @@ impl fmt::Display for Loc {
     }
 }
 
-#[derive(Clone)]
 pub struct Lexer<Chars: Iterator<Item = char> + Clone> {
     chars: Peekable<Chars>,
     filename: String,

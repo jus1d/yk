@@ -5,12 +5,12 @@ use std::collections::HashMap;
 use std::fmt;
 use std::iter::Peekable;
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Ast {
     pub functions: HashMap<String, Function>
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Function {
     pub name: String,
     pub ret_type: String,
@@ -18,25 +18,25 @@ pub struct Function {
     pub body: Vec<Statement>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Param {
     pub name: String,
     pub typ: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub enum Statement {
     Funcall { name: String, args: Vec<Expr> },
     Ret { value: Option<Expr> },
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub enum Literal {
     Number(i64),
     String(String),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub enum Expr {
     Variable(String),
     Literal(Literal),
@@ -51,7 +51,7 @@ pub enum Expr {
     },
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub enum BinaryOp {
     Add,
     Sub,
@@ -275,7 +275,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                     self.expect(TokenKind::CloseParen);
                     return expr;
                 }
-                _ => diag::fatal!(token.loc, "unexpected token: {:?}", token.kind),
+                _ => diag::fatal!(token.loc, "unexpected token: {}", token.kind),
             }
         } else {
             diag::fatal!("expected expression, got EOF");
@@ -390,7 +390,6 @@ impl fmt::Display for Function {
     }
 }
 
-#[allow(unreachable_patterns)]
 impl fmt::Display for Statement {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -408,7 +407,6 @@ impl fmt::Display for Statement {
                 Some(value) => write!(f, "ret {};", value),
                 None => write!(f, "ret;"),
             },
-            _ => unreachable!(),
         }
     }
 }
@@ -422,7 +420,6 @@ impl fmt::Display for Literal {
     }
 }
 
-#[allow(unreachable_patterns)]
 impl fmt::Display for Expr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -441,12 +438,10 @@ impl fmt::Display for Expr {
             Expr::Binary { op, lhs, rhs } => {
                 write!(f, "({} {} {})", lhs, op, rhs)
             }
-            _ => unreachable!(),
         }
     }
 }
 
-#[allow(unreachable_patterns)]
 impl fmt::Display for BinaryOp {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
@@ -457,7 +452,6 @@ impl fmt::Display for BinaryOp {
                 BinaryOp::Sub => "-",
                 BinaryOp::Mul => "*",
                 BinaryOp::Div => "/",
-                _ => unreachable!(),
             }
         )
     }
