@@ -4,11 +4,8 @@ main: main.o
 main.o: main.s
 	as -arch arm64 -o main.o main.s
 
-main.s: main.yk target/release/ykc
-	./target/release/ykc ./main.yk > main.s
-
-target/release/ykc: src/*.rs
-	cargo build --release
+main.s: main.yk src/*.rs
+	cargo run --release -- -o main.s ./main.yk
 
 clean:
 	rm main main.o

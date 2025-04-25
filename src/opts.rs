@@ -17,16 +17,18 @@ macro_rules! usage {
 
 pub struct Opts {
     program_name: String,
-    pub input_file_path: String,
-    pub output_file_path: String,
+    pub input_path: String,
+    pub use_custom_output: bool,
+    pub output_path: String,
 }
 
 impl Opts {
     pub fn parse_args(mut args: Args) -> Opts {
         let mut opts = Opts {
             program_name: String::new(),
-            input_file_path: String::new(),
-            output_file_path: String::new(),
+            input_path: String::new(),
+            use_custom_output: false,
+            output_path: String::new(),
         };
         opts.program_name = args.next().unwrap();
 
@@ -34,8 +36,9 @@ impl Opts {
             match arg.as_str() {
                 "-o" => {
                     match args.next() {
-                        Some(output_file_path) => {
-                            opts.output_file_path = output_file_path;
+                        Some(output_path) => {
+                            opts.use_custom_output = true;
+                            opts.output_path = output_path;
                         },
                         None => {
                             usage!(opts.program_name);
@@ -48,14 +51,18 @@ impl Opts {
                     exit(0);
                 },
                 _ => {
-                    opts.input_file_path = arg;
+                    opts.input_path = arg;
                 }
             }
         }
 
-        if opts.input_file_path.is_empty() {
+        if opts.input_path.is_empty() {
             usage!(opts.program_name);
             diag::fatal!("no input files");
+        }
+
+        if opts.output_path.is_empty() {
+            opts.output_path = String::from("stdout");
         }
 
         opts
