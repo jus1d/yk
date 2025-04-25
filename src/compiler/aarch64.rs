@@ -36,7 +36,7 @@ fn generate_aarch64_darwin_func_body<W: Write>(ast: &Ast, out: &mut W, strings: 
 
     generate_aarch64_darwin_func_prologue(out)?;
     for statement in &function.body {
-        generate_aarch64_darwin_statement(ast, out, statement, strings, function.name.clone())?;
+        generate_aarch64_darwin_statement(ast, out, statement, strings, &function.name)?;
     }
     generate_aarch64_darwin_func_epilogue(out)?;
 
@@ -85,11 +85,11 @@ fn generate_aarch64_darwin_exit<W: Write>(out: &mut W, code: u8) -> io::Result<(
     Ok(())
 }
 
-fn generate_aarch64_darwin_statement<W: Write>(ast: &Ast, out: &mut W, statement: &Statement, strings: &mut Vec<String>, current_func_name: String) -> io::Result<()> {
+fn generate_aarch64_darwin_statement<W: Write>(ast: &Ast, out: &mut W, statement: &Statement, strings: &mut Vec<String>, current_func_name: &str) -> io::Result<()> {
     match statement {
         Statement::Ret { value } => {
             if let Some(expr) = value {
-                generate_aarch64_darwin_expression(ast, out, &expr, current_func_name)?;
+                generate_aarch64_darwin_expression_to_register(ast, out, &expr, current_func_name, "x0")?;
             } else {
                 writeln!(out, "    ret")?;
             }
@@ -108,14 +108,14 @@ fn generate_aarch64_darwin_statement<W: Write>(ast: &Ast, out: &mut W, statement
                 "exit" => {
                     let code: i64 = match &args[0] {
                         Expr::Literal(Literal::Number(n)) => *n,
-                        _ => 69,
+                        _ => todo!(),
                     };
                     generate_aarch64_darwin_exit(out, code as u8)?;
                 }
                 _ => {
-                    for (i, arg) in args.iter().rev().enumerate() {
-                        generate_aarch64_darwin_expression(ast, out, arg, current_func_name.clone())?;
-                        writeln!(out, "    mov     x{}, x0", i)?;
+                    for (i, arg) in args.iter().enumerate() {
+                        let reg = format!("x{}", i);
+                        generate_aarch64_darwin_expression_to_register(ast, out, arg, current_func_name, &reg)?;
                     }
                     writeln!(out, "    ; call {}", name)?;
                     writeln!(out, "    bl      _{}", name)?;
@@ -126,52 +126,44 @@ fn generate_aarch64_darwin_statement<W: Write>(ast: &Ast, out: &mut W, statement
     Ok(())
 }
 
-fn generate_aarch64_darwin_expression<W: Write>(ast: &Ast, out: &mut W, expr: &Expr, current_func_name: String) -> io::Result<()> {
+fn generate_aarch64_darwin_expression_to_register<W: Write>(ast: &Ast, out: &mut W, expr: &Expr, current_func_name: &str, register: &str) -> io::Result<()> {
     match expr {
         Expr::Literal(lit) => {
-            generate_aarch64_darwin_literal(out, lit)?;
+            generate_aarch64_darwin_literal_to_register(out, lit, register)?;
         }
         Expr::Binary { op, lhs, rhs } => {
-            generate_aarch64_darwin_expression(ast, out, lhs, current_func_name.clone())?;
-            writeln!(out, "    ; store {}", lhs)?;
-            writeln!(out, "    str     x0, [sp, -16]!")?;
-            generate_aarch64_darwin_expression(ast, out, rhs, current_func_name.clone())?;
-            writeln!(out, "    ; load {}", lhs)?;
-            writeln!(out, "    ldr     x1, [sp], 16")?;
+            generate_aarch64_darwin_expression_to_register(ast, out, lhs, current_func_name, "x9")?;
+            generate_aarch64_darwin_expression_to_register(ast, out, rhs, current_func_name, "x10")?;
             writeln!(out, "    ; binop: {} {} {}", lhs, op, rhs)?;
             match op {
-                BinaryOp::Add => writeln!(out, "    add     x0, x1, x0")?,
-                BinaryOp::Sub => writeln!(out, "    sub     x0, x1, x0")?,
-                BinaryOp::Mul => writeln!(out, "    mul     x0, x1, x0")?,
-                BinaryOp::Div => writeln!(out, "    sdiv    x0, x1, x0")?,
+                BinaryOp::Add => writeln!(out, "    add     {}, x10, x9", register)?,
+                BinaryOp::Sub => writeln!(out, "    sub     {}, x10, x9", register)?,
+                BinaryOp::Mul => writeln!(out, "    mul     {}, x10, x9", register)?,
+                BinaryOp::Div => writeln!(out, "    sdiv    {}, x10, x9", register)?,
             }
         },
         Expr::Funcall { name, args } => {
-            writeln!(out, "    ; store args")?;
-            for arg in args {
-                generate_aarch64_darwin_expression(ast, out, arg, current_func_name.clone())?;
-                writeln!(out, "    str     x0, [sp, -16]!")?;
-            }
-            writeln!(out, "    ; load args")?;
-            for i in 0..args.len() {
-                writeln!(out, "    ldr     x{}, [sp], 16", args.len() - i - 1)?;
+            writeln!(out, "    ; args for funcall {}", name)?;
+            for (i, arg) in args.iter().enumerate() {
+                let register = format!("x{}", i);
+                generate_aarch64_darwin_expression_to_register(ast, out, arg, current_func_name, &register)?;
             }
             writeln!(out, "    ; call {}", name)?;
             writeln!(out, "    bl      _{}", name)?;
         },
         Expr::Variable(name) => {
             writeln!(out, "    ; variable {}", name)?;
-            writeln!(out, "    mov     x0, x{}", compiler::get_variable_position(ast, current_func_name.as_str(), name))?;
+            writeln!(out, "    mov     {}, x{}", register, compiler::get_variable_position(ast, current_func_name, name))?;
         },
     }
     Ok(())
 }
 
-fn generate_aarch64_darwin_literal<W: Write>(out: &mut W, lit: &Literal) -> io::Result<()> {
+fn generate_aarch64_darwin_literal_to_register<W: Write>(out: &mut W, lit: &Literal, register: &str) -> io::Result<()> {
     match lit {
         Literal::Number(n) => {
             writeln!(out, "    ; number: {}", n)?;
-            writeln!(out, "    mov     x0, {}", n)?;
+            writeln!(out, "    mov     {}, {}", register, n)?;
         },
         Literal::String(_) => todo!("string literals"),
     }
