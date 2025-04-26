@@ -19,6 +19,15 @@ fn typecheck(ast: &Ast) {
             }],
             body: vec![],
         }),
+        ("puti", Function {
+            name: String::from("puti"),
+            ret_type: String::from("void"),
+            params: vec![Variable {
+                name: String::from("val"),
+                typ: String::from("int64"),
+            }],
+            body: vec![],
+        }),
         ("exit", Function {
             name: String::from("exit"),
             ret_type: String::from("never"),

@@ -7,6 +7,9 @@ pub struct Generator<'a, W: Write> {
     output: W,
     ast: &'a Ast,
     strings: Vec<String>,
+    use_exit: bool,
+    use_puts: bool,
+    use_puti: bool,
 }
 
 impl<'a, W: Write> Generator<'a, W> {
@@ -15,18 +18,28 @@ impl<'a, W: Write> Generator<'a, W> {
             output,
             ast,
             strings: Vec::new(),
+            use_exit: false,
+            use_puts: false,
+            use_puti: false,
         }
     }
 
     pub fn generate(&mut self) -> io::Result<()> {
         self.write_preamble()?;
-        self.write_puts()?;
-        self.write_exit()?;
 
         for function in self.ast.functions.values() {
             self.write_func(function)?;
         }
 
+        if self.use_puts {
+            self.write_puts()?;
+        }
+        if self.use_puti {
+            self.write_puti()?;
+        }
+        if self.use_exit {
+            self.write_exit()?;
+        }
         self.write_data_section()
     }
 
@@ -84,6 +97,13 @@ impl<'a, W: Write> Generator<'a, W> {
     }
 
     fn write_funcall(&mut self, current_func: &Function, callee_name: &str, args: &[Expr]) -> io::Result<()> {
+        match callee_name {
+            "exit" => self.use_exit = true,
+            "puts" => self.use_puts = true,
+            "puti" => self.use_puti = true,
+            _ => {},
+        }
+
         writeln!(self.output, "    ; store args of {}", current_func.name)?;
         for (i, _) in current_func.params.iter().enumerate() {
             writeln!(self.output, "    str     x{}, [x29, {}]", i, 16 + 8 * i)?;
@@ -138,10 +158,10 @@ impl<'a, W: Write> Generator<'a, W> {
         writeln!(self.output, "    ; binop: {} {} {}", lhs, op, rhs)?;
 
         match op {
-            BinaryOp::Add => writeln!(self.output, "    add     {}, x10, x9", target_reg),
-            BinaryOp::Sub => writeln!(self.output, "    sub     {}, x10, x9", target_reg),
-            BinaryOp::Mul => writeln!(self.output, "    mul     {}, x10, x9", target_reg),
-            BinaryOp::Div => writeln!(self.output, "    sdiv    {}, x10, x9", target_reg),
+            BinaryOp::Add => writeln!(self.output, "    add     {}, x9, x10", target_reg),
+            BinaryOp::Sub => writeln!(self.output, "    sub     {}, x9, x10", target_reg),
+            BinaryOp::Mul => writeln!(self.output, "    mul     {}, x9, x10", target_reg),
+            BinaryOp::Div => writeln!(self.output, "    sdiv    {}, x9, x10", target_reg),
         }
     }
 
@@ -172,6 +192,7 @@ impl<'a, W: Write> Generator<'a, W> {
     }
 
     fn write_puts(&mut self) -> io::Result<()> {
+        writeln!(self.output, "; std::puts")?;
         writeln!(self.output, "_puts:")?;
         writeln!(self.output, "    mov     x1, x0")?;
         writeln!(self.output, "    mov     x2, 0")?;
@@ -184,13 +205,60 @@ impl<'a, W: Write> Generator<'a, W> {
         writeln!(self.output, "    mov     x0, 1")?;
         writeln!(self.output, "    mov     x16, 4")?;
         writeln!(self.output, "    svc     0")?;
-        writeln!(self.output, "    ret\n")
+        writeln!(self.output, "    ret")?;
+        writeln!(self.output)?;
+        Ok(())
+    }
+
+    fn write_puti(&mut self) -> io::Result<()> {
+        writeln!(self.output, "; std::puti")?;
+        writeln!(self.output, "_puti:")?;
+        writeln!(self.output, "    stp     x29, x30, [sp, -48]!")?;
+        writeln!(self.output, "    mov     x29, sp")?;
+        writeln!(self.output, "    mov     x9, 0xCCCC")?;
+        writeln!(self.output, "    movk    x9, 0xCCCC, lsl 16")?;
+        writeln!(self.output, "    movk    x9, 0xCCCC, lsl 32")?;
+        writeln!(self.output, "    movk    x9, 0xCCCD, lsl 48")?;
+        writeln!(self.output, "    mov     w11, 10")?;
+        writeln!(self.output, "    strb    w11, [x29, 47]")?;
+        writeln!(self.output, "    add     x2, x29, 46")?;
+        writeln!(self.output, "    mov     x5, x0")?;
+        writeln!(self.output, "    cmp     x5, 0")?;
+        writeln!(self.output, "    b.ne    1f")?;
+        writeln!(self.output, "    mov     w0, 48")?;
+        writeln!(self.output, "    strb    w0, [x2], -1")?;
+        writeln!(self.output, "    b       2f")?;
+        writeln!(self.output, "1:")?;
+        writeln!(self.output, "    umulh   x11, x5, x9")?;
+        writeln!(self.output, "    lsr     x11, x11, 3")?;
+        writeln!(self.output, "    add     x12, x11, x11, lsl 2")?;
+        writeln!(self.output, "    add     x12, x12, x12")?;
+        writeln!(self.output, "    sub     x12, x5, x12")?;
+        writeln!(self.output, "    add     w12, w12, 48")?;
+        writeln!(self.output, "    strb    w12, [x2], -1")?;
+        writeln!(self.output, "    mov     x5, x11")?;
+        writeln!(self.output, "    cmp     x5, 0")?;
+        writeln!(self.output, "    b.ne    1b")?;
+        writeln!(self.output, "2:")?;
+        writeln!(self.output, "    add     x1, x2, 1")?;
+        writeln!(self.output, "    add     x3, x29, 48")?;
+        writeln!(self.output, "    sub     x2, x3, x1")?;
+        writeln!(self.output, "    mov     x0, 1")?;
+        writeln!(self.output, "    mov     x16, 4")?;
+        writeln!(self.output, "    svc     0")?;
+        writeln!(self.output, "    ldp     x29, x30, [sp], 48")?;
+        writeln!(self.output, "    ret")?;
+        writeln!(self.output)?;
+        Ok(())
     }
 
     fn write_exit(&mut self) -> io::Result<()> {
+        writeln!(self.output, "; std::exit")?;
         writeln!(self.output, "_exit:")?;
         writeln!(self.output, "    mov     x16, 1")?;
-        writeln!(self.output, "    svc     0\n")
+        writeln!(self.output, "    svc     0")?;
+        writeln!(self.output)?;
+        Ok(())
     }
 
     fn write_data_section(&mut self) -> io::Result<()> {

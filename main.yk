@@ -1,8 +1,4 @@
-fn hello(string s, int64 inc) int64 {
-    puts(s);
-    ret inc + 1;
-}
-
 fn main() int64 {
-    ret hello("Hello, world!", 34 * 2);
+    puti(68 / 2 - 1);
+    ret 0;
 }
