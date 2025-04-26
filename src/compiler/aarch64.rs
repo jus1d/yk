@@ -1,194 +1,208 @@
-// TODO: function args are corrupted, when I call puts/exit from function.
-// I have to play with SP, when one function calls another
+use std::io::{self, Write};
 
 use crate::parser::{Ast, Function, Statement, BinaryOp, Expr, Literal};
 use crate::compiler;
 
-use std::io;
-use std::io::Write;
-
-pub fn generate_aarch64_darwin_assembly<W: Write>(ast: &Ast, out: &mut W) -> io::Result<()> {
-    let ast = ast.clone();
-    let mut strings = Vec::<String>::new();
-
-    generate_aarch64_darwin_preamble(out)?;
-    generate_aarch64_darwin_puts(out)?;
-    generate_aarch64_darwin_exit(out)?;
-
-    for (_, function) in &ast.functions {
-        generate_aarch64_darwin_func_body(out, &ast, &mut strings, function)?;
-    }
-    generate_aarch64_darwin_data_section(out, &strings)?;
-    Ok(())
+pub struct Generator<'a, W: Write> {
+    output: W,
+    ast: &'a Ast,
+    strings: Vec<String>,
 }
 
-fn generate_aarch64_darwin_preamble<W: Write>(out: &mut W) -> io::Result<()> {
-    writeln!(out, ".global _main")?;
-    writeln!(out, ".align 2")?;
-    writeln!(out)?;
-    Ok(())
-}
-
-// offset in quadwords (64 bits)
-fn generate_aarch64_darwin_func_prologue<W: Write>(out: &mut W, mut offset: usize) -> io::Result<()> {
-    if offset % 2 == 1 {
-        offset += 1;
-    }
-
-    let stack_offset = 16 + (offset * 8);
-    writeln!(out, "    ; prologue")?;
-    writeln!(out, "    stp     x29, x30, [sp, -{}]!", stack_offset)?;
-    writeln!(out, "    mov     x29, sp")?;
-    Ok(())
-}
-
-fn generate_aarch64_darwin_func_body<W: Write>(out: &mut W, ast: &Ast, strings: &mut Vec<String>, function: &Function) -> io::Result<()> {
-    writeln!(out, "; function {}", function.name)?;
-    writeln!(out, "_{}:", function.name)?;
-
-    generate_aarch64_darwin_func_prologue(out, function.params.len())?;
-    for statement in &function.body {
-        generate_aarch64_darwin_statement(out, ast, function, statement, strings)?;
-    }
-    writeln!(out)?;
-
-    Ok(())
-}
-
-// offset in quadwords (64 bits)
-fn generate_aarch64_darwin_func_epilogue<W: Write>(out: &mut W, mut offset: usize) -> io::Result<()> {
-    if offset % 2 == 1 {
-        offset += 1;
-    }
-
-    let stack_offset = 16 + (offset * 8);
-    writeln!(out, "    ; epilogue")?;
-    writeln!(out, "    mov     sp, x29")?;
-    writeln!(out, "    ldp     x29, x30, [sp], {}", stack_offset)?;
-    writeln!(out, "    ret")?;
-    Ok(())
-}
-
-fn generate_aarch64_darwin_data_section<W: Write>(out: &mut W, strings: &Vec<String>) -> io::Result<()> {
-    if strings.len() < 1 {
-        return Ok(());
-    }
-
-    writeln!(out)?;
-    writeln!(out, "; data section")?;
-    for (i, s) in strings.iter().enumerate() {
-        writeln!(out, "string.{}:", i)?;
-        writeln!(out, "    .asciz \"{}\\n\"", s)?;
-    }
-    Ok(())
-}
-
-fn generate_aarch64_darwin_puts<W: Write>(out: &mut W) -> io::Result<()> {
-    writeln!(out, "_puts:")?;
-    writeln!(out, "    mov     x1, x0")?;
-    writeln!(out, "    mov     x2, 0")?;
-    writeln!(out, "1:")?;
-    writeln!(out, "    ldrb    w3, [x1, x2]")?;
-    writeln!(out, "    cbz     w3, 2f")?;
-    writeln!(out, "    add     x2, x2, 1")?;
-    writeln!(out, "    b       1b")?;
-    writeln!(out, "2:")?;
-    writeln!(out, "    mov     x0, 1")?;
-    writeln!(out, "    mov     x16, 4")?;
-    writeln!(out, "    svc     0")?;
-    writeln!(out, "    ret")?;
-    writeln!(out)?;
-    Ok(())
-}
-
-fn generate_aarch64_darwin_exit<W: Write>(out: &mut W) -> io::Result<()> {
-    writeln!(out, "_exit:")?;
-    writeln!(out, "    mov     x16, 1")?;
-    writeln!(out, "    svc     0")?;
-    writeln!(out)?;
-    Ok(())
-}
-
-fn generate_aarch64_darwin_statement<W: Write>(out: &mut W, ast: &Ast, func: &Function, statement: &Statement, strings: &mut Vec<String>) -> io::Result<()> {
-    match statement {
-        Statement::Ret { value } => {
-            if let Some(expr) = value {
-                generate_aarch64_darwin_expression(out, ast, &expr, strings, &func.name, "x0")?;
-            }
-            generate_aarch64_darwin_func_epilogue(out, func.params.len())?;
+impl<'a, W: Write> Generator<'a, W> {
+    pub fn new(ast: &'a Ast, output: W) -> Self {
+        Self {
+            output,
+            ast,
+            strings: Vec::new(),
         }
-        Statement::Funcall { name, args } => {
-            // TODO: save arguments to stack only if next function polutes x0-x7 registers
-            writeln!(out, "    ; store arguments of {}", func.name)?;
-            for i in 0..func.params.len() {
-                writeln!(out, "    str     x{}, [x29, {}]", i, 16 + 8 * i)?;
+    }
+
+    pub fn generate(&mut self) -> io::Result<()> {
+        self.write_preamble()?;
+        self.write_puts()?;
+        self.write_exit()?;
+
+        for function in self.ast.functions.values() {
+            self.write_func(function)?;
+        }
+
+        self.write_data_section()
+    }
+
+    fn write_preamble(&mut self) -> io::Result<()> {
+        writeln!(self.output, ".global _main")?;
+        writeln!(self.output, ".align 2\n")?;
+        Ok(())
+    }
+
+    fn write_func_prologue(&mut self, offset: usize) -> io::Result<()> {
+        let offset = if offset % 2 == 1 { offset + 1 } else { offset };
+        let stack_size = 16 + (offset * 8);
+
+        writeln!(self.output, "    ; prologue")?;
+        writeln!(self.output, "    stp     x29, x30, [sp, -{}]!", stack_size)?;
+        writeln!(self.output, "    mov     x29, sp")
+    }
+
+    fn write_func_epilogue(&mut self, offset: usize) -> io::Result<()> {
+        let offset = if offset % 2 == 1 { offset + 1 } else { offset };
+        let stack_size = 16 + (offset * 8);
+
+        writeln!(self.output, "    ; epilogue")?;
+        writeln!(self.output, "    mov     sp, x29")?;
+        writeln!(self.output, "    ldp     x29, x30, [sp], {}", stack_size)?;
+        writeln!(self.output, "    ret")
+    }
+
+    fn write_func(&mut self, function: &Function) -> io::Result<()> {
+        writeln!(self.output, "; function {}", function.name)?;
+        writeln!(self.output, "_{}:", function.name)?;
+
+        self.write_func_prologue(function.params.len())?;
+
+        for statement in &function.body {
+            self.write_statement(function, statement)?;
+        }
+
+        writeln!(self.output)?;
+        Ok(())
+    }
+
+    fn write_statement(&mut self, function: &Function, statement: &Statement) -> io::Result<()> {
+        match statement {
+            Statement::Ret { value } => {
+                if let Some(expr) = value {
+                    self.write_expression(expr, &function.name, "x0")?;
+                }
+                self.write_func_epilogue(function.params.len())
             }
-            writeln!(out, "    ; load arguments for {}", name)?;
-            for (i, arg) in args.iter().enumerate() {
-                let reg = format!("x{}", i);
-                generate_aarch64_darwin_expression(out, ast, arg, strings, &func.name, &reg)?;
-            }
-            writeln!(out, "    ; call {}", name)?;
-            writeln!(out, "    bl      _{}", name)?;
-            writeln!(out, "    ; restore arguments for {}", func.name)?;
-            for i in 0..func.params.len() {
-                writeln!(out, "    ldr     x{}, [x29, {}]", i, 16 + 8 * i)?;
+            Statement::Funcall { name, args } => {
+                self.write_funcall(function, name, args)
             }
         }
     }
-    Ok(())
-}
 
-fn generate_aarch64_darwin_expression<W: Write>(out: &mut W, ast: &Ast, expr: &Expr, strings: &mut Vec<String>, current_func_name: &str, register: &str) -> io::Result<()> {
-    match expr {
-        Expr::Literal(lit) => {
-            generate_aarch64_darwin_literal(out, lit, strings, register)?;
+    fn write_funcall(&mut self, current_func: &Function, callee_name: &str, args: &[Expr]) -> io::Result<()> {
+        writeln!(self.output, "    ; store args of {}", current_func.name)?;
+        for (i, _) in current_func.params.iter().enumerate() {
+            writeln!(self.output, "    str     x{}, [x29, {}]", i, 16 + 8 * i)?;
         }
-        Expr::Binary { op, lhs, rhs } => {
-            generate_aarch64_darwin_expression(out, ast, lhs, strings, current_func_name, "x9")?;
-            generate_aarch64_darwin_expression(out, ast, rhs, strings, current_func_name, "x10")?;
-            writeln!(out, "    ; binop: {} {} {}", lhs, op, rhs)?;
-            match op {
-                BinaryOp::Add => writeln!(out, "    add     {}, x10, x9", register)?,
-                BinaryOp::Sub => writeln!(out, "    sub     {}, x10, x9", register)?,
-                BinaryOp::Mul => writeln!(out, "    mul     {}, x10, x9", register)?,
-                BinaryOp::Div => writeln!(out, "    sdiv    {}, x10, x9", register)?,
-            }
-        },
-        Expr::Funcall { name, args } => {
-            writeln!(out, "    ; args for funcall {}", name)?;
-            for (i, arg) in args.iter().enumerate() {
-                let register = format!("x{}", i);
-                generate_aarch64_darwin_expression(out, ast, arg, strings, current_func_name, &register)?;
-            }
-            writeln!(out, "    ; call {}", name)?;
-            writeln!(out, "    bl      _{}", name)?;
-        },
-        Expr::Variable(name) => {
-            let src = &format!("x{}", compiler::get_variable_position(ast, current_func_name, name));
-            let dst = register;
-            if src != dst {
-                writeln!(out, "    ; variable {}", name)?;
-                writeln!(out, "    mov     {}, {}", dst, src)?;
-            }
-        },
-    }
-    Ok(())
-}
 
-fn generate_aarch64_darwin_literal<W: Write>(out: &mut W, lit: &Literal, strings: &mut Vec<String>, register: &str) -> io::Result<()> {
-    match lit {
-        Literal::Number(n) => {
-            writeln!(out, "    ; number: {}", n)?;
-            writeln!(out, "    mov     {}, {}", register, n)?;
-        },
-        Literal::String(text) => {
-            let idx = strings.len();
-            strings.push(text.to_string());
-            writeln!(out, "    ; string: \"{}\"", text)?;
-            writeln!(out, "    adrp    {}, string.{}@PAGE", register, idx)?;
-            writeln!(out, "    add     {}, {}, string.{}@PAGEOFF", register, register, idx)?;
-        },
+        writeln!(self.output, "    ; load args for {}", callee_name)?;
+        for (i, arg) in args.iter().enumerate() {
+            let reg = format!("x{}", i);
+            self.write_expression(arg, &current_func.name, &reg)?;
+        }
+
+        writeln!(self.output, "    ; call {}", callee_name)?;
+        writeln!(self.output, "    bl      _{}", callee_name)?;
+
+        writeln!(self.output, "    ; restore arguments for {}", current_func.name)?;
+        for (i, _) in current_func.params.iter().enumerate() {
+            writeln!(self.output, "    ldr     x{}, [x29, {}]", i, 16 + 8 * i)?;
+        }
+
+        Ok(())
     }
-    Ok(())
+
+    fn write_expression(&mut self, expr: &Expr, current_func: &str, target_reg: &str) -> io::Result<()> {
+        match expr {
+            Expr::Literal(lit) => self.write_literal(lit, target_reg),
+            Expr::Binary { op, lhs, rhs } => self.write_binary_expr(op, lhs, rhs, current_func, target_reg),
+            Expr::Funcall { name, args } => self.write_funcall_expr(name, args, current_func, target_reg),
+            Expr::Variable(name) => self.write_variable(name, current_func, target_reg),
+        }
+    }
+
+    fn write_literal(&mut self, lit: &Literal, reg: &str) -> io::Result<()> {
+        match lit {
+            Literal::Number(n) => {
+                writeln!(self.output, "    ; number: {}", n)?;
+                writeln!(self.output, "    mov     {}, {}", reg, n)
+            },
+            Literal::String(text) => {
+                let idx = self.strings.len();
+                self.strings.push(text.clone());
+                writeln!(self.output, "    ; string: \"{}\"", text)?;
+                writeln!(self.output, "    adrp    {}, string.{}@PAGE", reg, idx)?;
+                writeln!(self.output, "    add     {}, {}, string.{}@PAGEOFF", reg, reg, idx)
+            },
+        }
+    }
+
+    fn write_binary_expr(&mut self, op: &BinaryOp, lhs: &Expr, rhs: &Expr, current_func: &str, target_reg: &str) -> io::Result<()> {
+        self.write_expression(lhs, current_func, "x9")?;
+        self.write_expression(rhs, current_func, "x10")?;
+
+        writeln!(self.output, "    ; binop: {} {} {}", lhs, op, rhs)?;
+
+        match op {
+            BinaryOp::Add => writeln!(self.output, "    add     {}, x10, x9", target_reg),
+            BinaryOp::Sub => writeln!(self.output, "    sub     {}, x10, x9", target_reg),
+            BinaryOp::Mul => writeln!(self.output, "    mul     {}, x10, x9", target_reg),
+            BinaryOp::Div => writeln!(self.output, "    sdiv    {}, x10, x9", target_reg),
+        }
+    }
+
+    fn write_funcall_expr(&mut self, name: &str, args: &[Expr], current_func: &str, target_reg: &str) -> io::Result<()> {
+        writeln!(self.output, "    ; args for funcall {}", name)?;
+        for (i, arg) in args.iter().enumerate() {
+            let reg = format!("x{}", i);
+            self.write_expression(arg, current_func, &reg)?;
+        }
+
+        writeln!(self.output, "    ; call {}", name)?;
+        writeln!(self.output, "    bl      _{}", name)?;
+
+        if target_reg != "x0" {
+            writeln!(self.output, "    mov     {}, x0", target_reg)?;
+        }
+
+        Ok(())
+    }
+
+    fn write_variable(&mut self, name: &str, current_func: &str, target_reg: &str) -> io::Result<()> {
+        let src_reg = format!("x{}", compiler::get_variable_position(self.ast, current_func, name));
+        if src_reg != target_reg {
+            writeln!(self.output, "    ; variable {}", name)?;
+            writeln!(self.output, "    mov     {}, {}", target_reg, src_reg)?;
+        }
+        Ok(())
+    }
+
+    fn write_puts(&mut self) -> io::Result<()> {
+        writeln!(self.output, "_puts:")?;
+        writeln!(self.output, "    mov     x1, x0")?;
+        writeln!(self.output, "    mov     x2, 0")?;
+        writeln!(self.output, "1:")?;
+        writeln!(self.output, "    ldrb    w3, [x1, x2]")?;
+        writeln!(self.output, "    cbz     w3, 2f")?;
+        writeln!(self.output, "    add     x2, x2, 1")?;
+        writeln!(self.output, "    b       1b")?;
+        writeln!(self.output, "2:")?;
+        writeln!(self.output, "    mov     x0, 1")?;
+        writeln!(self.output, "    mov     x16, 4")?;
+        writeln!(self.output, "    svc     0")?;
+        writeln!(self.output, "    ret\n")
+    }
+
+    fn write_exit(&mut self) -> io::Result<()> {
+        writeln!(self.output, "_exit:")?;
+        writeln!(self.output, "    mov     x16, 1")?;
+        writeln!(self.output, "    svc     0\n")
+    }
+
+    fn write_data_section(&mut self) -> io::Result<()> {
+        if self.strings.is_empty() {
+            return Ok(());
+        }
+
+        writeln!(self.output, "; data section")?;
+        for (i, s) in self.strings.iter().enumerate() {
+            writeln!(self.output, "string.{}:", i)?;
+            writeln!(self.output, "    .asciz \"{}\\n\"", s)?;
+        }
+        Ok(())
+    }
 }

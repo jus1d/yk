@@ -1,6 +1,6 @@
-fn hello(string str, string i) int64 {
+fn hello(string str, int64 inc) int64 {
     puts(str);
-    ret i + 1;
+    ret inc + 1;
 }
 
 fn main() int64 {

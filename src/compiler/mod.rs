@@ -17,7 +17,8 @@ impl Compiler {
     }
 
     pub fn compile<W: Write>(&self, out: &mut W) -> io::Result<()> {
-        aarch64::generate_aarch64_darwin_assembly(&self.ast, out)?;
+        let mut g = aarch64::Generator::new(&self.ast, out);
+        g.generate()?;
         Ok(())
     }
 }
