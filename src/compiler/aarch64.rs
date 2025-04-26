@@ -89,7 +89,7 @@ fn generate_aarch64_darwin_statement<W: Write>(ast: &Ast, out: &mut W, statement
     match statement {
         Statement::Ret { value } => {
             if let Some(expr) = value {
-                generate_aarch64_darwin_expression_to_register(ast, out, &expr, current_func_name, "x0")?;
+                generate_aarch64_darwin_expression(ast, out, &expr, current_func_name, "x0")?;
             } else {
                 writeln!(out, "    ret")?;
             }
@@ -115,7 +115,7 @@ fn generate_aarch64_darwin_statement<W: Write>(ast: &Ast, out: &mut W, statement
                 _ => {
                     for (i, arg) in args.iter().enumerate() {
                         let reg = format!("x{}", i);
-                        generate_aarch64_darwin_expression_to_register(ast, out, arg, current_func_name, &reg)?;
+                        generate_aarch64_darwin_expression(ast, out, arg, current_func_name, &reg)?;
                     }
                     writeln!(out, "    ; call {}", name)?;
                     writeln!(out, "    bl      _{}", name)?;
@@ -126,14 +126,14 @@ fn generate_aarch64_darwin_statement<W: Write>(ast: &Ast, out: &mut W, statement
     Ok(())
 }
 
-fn generate_aarch64_darwin_expression_to_register<W: Write>(ast: &Ast, out: &mut W, expr: &Expr, current_func_name: &str, register: &str) -> io::Result<()> {
+fn generate_aarch64_darwin_expression<W: Write>(ast: &Ast, out: &mut W, expr: &Expr, current_func_name: &str, register: &str) -> io::Result<()> {
     match expr {
         Expr::Literal(lit) => {
-            generate_aarch64_darwin_literal_to_register(out, lit, register)?;
+            generate_aarch64_darwin_literal(out, lit, register)?;
         }
         Expr::Binary { op, lhs, rhs } => {
-            generate_aarch64_darwin_expression_to_register(ast, out, lhs, current_func_name, "x9")?;
-            generate_aarch64_darwin_expression_to_register(ast, out, rhs, current_func_name, "x10")?;
+            generate_aarch64_darwin_expression(ast, out, lhs, current_func_name, "x9")?;
+            generate_aarch64_darwin_expression(ast, out, rhs, current_func_name, "x10")?;
             writeln!(out, "    ; binop: {} {} {}", lhs, op, rhs)?;
             match op {
                 BinaryOp::Add => writeln!(out, "    add     {}, x10, x9", register)?,
@@ -146,7 +146,7 @@ fn generate_aarch64_darwin_expression_to_register<W: Write>(ast: &Ast, out: &mut
             writeln!(out, "    ; args for funcall {}", name)?;
             for (i, arg) in args.iter().enumerate() {
                 let register = format!("x{}", i);
-                generate_aarch64_darwin_expression_to_register(ast, out, arg, current_func_name, &register)?;
+                generate_aarch64_darwin_expression(ast, out, arg, current_func_name, &register)?;
             }
             writeln!(out, "    ; call {}", name)?;
             writeln!(out, "    bl      _{}", name)?;
@@ -159,7 +159,7 @@ fn generate_aarch64_darwin_expression_to_register<W: Write>(ast: &Ast, out: &mut
     Ok(())
 }
 
-fn generate_aarch64_darwin_literal_to_register<W: Write>(out: &mut W, lit: &Literal, register: &str) -> io::Result<()> {
+fn generate_aarch64_darwin_literal<W: Write>(out: &mut W, lit: &Literal, register: &str) -> io::Result<()> {
     match lit {
         Literal::Number(n) => {
             writeln!(out, "    ; number: {}", n)?;
