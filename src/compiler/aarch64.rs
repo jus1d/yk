@@ -9,6 +9,9 @@ pub fn generate_aarch64_darwin_assembly<W: Write>(ast: &Ast, out: &mut W) -> io:
     let mut strings = Vec::<String>::new();
 
     generate_aarch64_darwin_preamble(out)?;
+    generate_aarch64_darwin_puts(out)?;
+    generate_aarch64_darwin_exit(out)?;
+
     for (_, function) in &ast.functions {
         generate_aarch64_darwin_func_body(&ast, out, &mut strings, function)?;
     }
@@ -65,23 +68,29 @@ fn generate_aarch64_darwin_data_section<W: Write>(out: &mut W, strings: &Vec<Str
     Ok(())
 }
 
-fn generate_aarch64_darwin_println<W: Write>(out: &mut W, text: &str, idx: usize) -> io::Result<()> {
-    let length = text.len();
-    writeln!(out, "    ; println(\"{}\")", text)?;
+fn generate_aarch64_darwin_puts<W: Write>(out: &mut W) -> io::Result<()> {
+    writeln!(out, "_puts:")?;
+    writeln!(out, "    mov     x1, x0")?;
+    writeln!(out, "    mov     x2, 0")?;
+    writeln!(out, "1:")?;
+    writeln!(out, "    ldrb    w3, [x1, x2]")?;
+    writeln!(out, "    cbz     w3, 2f")?;
+    writeln!(out, "    add     x2, x2, 1")?;
+    writeln!(out, "    b       1b")?;
+    writeln!(out, "2:")?;
     writeln!(out, "    mov     x0, 1")?;
-    writeln!(out, "    adrp    x1, string.{}@PAGE", idx)?;
-    writeln!(out, "    add     x1, x1, string.{}@PAGEOFF", idx)?;
-    writeln!(out, "    mov     x2, {}", length + 1)?; // +1 for \n
     writeln!(out, "    mov     x16, 4")?;
-    writeln!(out, "    svc     0x80")?;
+    writeln!(out, "    svc     0")?;
+    writeln!(out, "    ret")?;
+    writeln!(out)?;
     Ok(())
 }
 
-fn generate_aarch64_darwin_exit<W: Write>(out: &mut W, code: u8) -> io::Result<()> {
-    writeln!(out, "    ; exit({})", code)?;
-    writeln!(out, "    mov     x0, {}", code)?;
+fn generate_aarch64_darwin_exit<W: Write>(out: &mut W) -> io::Result<()> {
+    writeln!(out, "_exit:")?;
     writeln!(out, "    mov     x16, 1")?;
-    writeln!(out, "    svc     0x80")?;
+    writeln!(out, "    svc     0")?;
+    writeln!(out)?;
     Ok(())
 }
 
@@ -89,51 +98,31 @@ fn generate_aarch64_darwin_statement<W: Write>(ast: &Ast, out: &mut W, statement
     match statement {
         Statement::Ret { value } => {
             if let Some(expr) = value {
-                generate_aarch64_darwin_expression(ast, out, &expr, current_func_name, "x0")?;
+                generate_aarch64_darwin_expression(ast, out, &expr, strings, current_func_name, "x0")?;
             } else {
                 writeln!(out, "    ret")?;
             }
         }
         Statement::Funcall { name, args } => {
-            match name.as_str() {
-                "println" => {
-                    let text = match &args[0] {
-                        Expr::Literal(Literal::String(s)) => s.as_str(),
-                        _ => ""
-                    };
-                    strings.push(text.to_string());
-
-                    generate_aarch64_darwin_println(out, text, strings.len() - 1)?;
-                }
-                "exit" => {
-                    let code: i64 = match &args[0] {
-                        Expr::Literal(Literal::Number(n)) => *n,
-                        _ => todo!(),
-                    };
-                    generate_aarch64_darwin_exit(out, code as u8)?;
-                }
-                _ => {
-                    for (i, arg) in args.iter().enumerate() {
-                        let reg = format!("x{}", i);
-                        generate_aarch64_darwin_expression(ast, out, arg, current_func_name, &reg)?;
-                    }
-                    writeln!(out, "    ; call {}", name)?;
-                    writeln!(out, "    bl      _{}", name)?;
-                }
+            for (i, arg) in args.iter().enumerate() {
+                let reg = format!("x{}", i);
+                generate_aarch64_darwin_expression(ast, out, arg, strings, current_func_name, &reg)?;
             }
+            writeln!(out, "    ; call {}", name)?;
+            writeln!(out, "    bl      _{}", name)?;
         }
     }
     Ok(())
 }
 
-fn generate_aarch64_darwin_expression<W: Write>(ast: &Ast, out: &mut W, expr: &Expr, current_func_name: &str, register: &str) -> io::Result<()> {
+fn generate_aarch64_darwin_expression<W: Write>(ast: &Ast, out: &mut W, expr: &Expr, strings: &mut Vec<String>, current_func_name: &str, register: &str) -> io::Result<()> {
     match expr {
         Expr::Literal(lit) => {
-            generate_aarch64_darwin_literal(out, lit, register)?;
+            generate_aarch64_darwin_literal(out, lit, strings, register)?;
         }
         Expr::Binary { op, lhs, rhs } => {
-            generate_aarch64_darwin_expression(ast, out, lhs, current_func_name, "x9")?;
-            generate_aarch64_darwin_expression(ast, out, rhs, current_func_name, "x10")?;
+            generate_aarch64_darwin_expression(ast, out, lhs, strings, current_func_name, "x9")?;
+            generate_aarch64_darwin_expression(ast, out, rhs, strings, current_func_name, "x10")?;
             writeln!(out, "    ; binop: {} {} {}", lhs, op, rhs)?;
             match op {
                 BinaryOp::Add => writeln!(out, "    add     {}, x10, x9", register)?,
@@ -146,26 +135,36 @@ fn generate_aarch64_darwin_expression<W: Write>(ast: &Ast, out: &mut W, expr: &E
             writeln!(out, "    ; args for funcall {}", name)?;
             for (i, arg) in args.iter().enumerate() {
                 let register = format!("x{}", i);
-                generate_aarch64_darwin_expression(ast, out, arg, current_func_name, &register)?;
+                generate_aarch64_darwin_expression(ast, out, arg, strings, current_func_name, &register)?;
             }
             writeln!(out, "    ; call {}", name)?;
             writeln!(out, "    bl      _{}", name)?;
         },
         Expr::Variable(name) => {
-            writeln!(out, "    ; variable {}", name)?;
-            writeln!(out, "    mov     {}, x{}", register, compiler::get_variable_position(ast, current_func_name, name))?;
+            let src = register;
+            let dst = &format!("x{}", compiler::get_variable_position(ast, current_func_name, name));
+            if src != dst {
+                writeln!(out, "    ; variable {}", name)?;
+                writeln!(out, "    mov     {}, x{}", dst, src)?;
+            }
         },
     }
     Ok(())
 }
 
-fn generate_aarch64_darwin_literal<W: Write>(out: &mut W, lit: &Literal, register: &str) -> io::Result<()> {
+fn generate_aarch64_darwin_literal<W: Write>(out: &mut W, lit: &Literal, strings: &mut Vec<String>, register: &str) -> io::Result<()> {
     match lit {
         Literal::Number(n) => {
             writeln!(out, "    ; number: {}", n)?;
             writeln!(out, "    mov     {}, {}", register, n)?;
         },
-        Literal::String(_) => todo!("string literals"),
+        Literal::String(text) => {
+            let idx = strings.len();
+            strings.push(text.to_string());
+            writeln!(out, "    ; string: \"{}\"", text)?;
+            writeln!(out, "    adrp    x0, string.{}@PAGE", idx)?;
+            writeln!(out, "    add     x0, x0, string.{}@PAGEOFF", idx)?;
+        },
     }
     Ok(())
 }

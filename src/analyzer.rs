@@ -10,11 +10,11 @@ pub fn analyze(ast: &Ast) {
 
 fn check_funcs_and_calls(ast: &Ast) {
     let builtin_funcs = HashMap::from([
-        ("println", Function {
-            name: String::from("println"),
+        ("puts", Function {
+            name: String::from("puts"),
             ret_type: String::from("void"),
             params: vec![Param {
-                name: String::from("message"),
+                name: String::from("str"),
                 typ: String::from("string"),
             }],
             body: vec![],
