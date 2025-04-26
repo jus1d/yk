@@ -1,4 +1,6 @@
 fn main() int64 {
-    puti(0-69);
+    if 0 {
+        puts("Hello world!");
+    }
     ret 0;
 }

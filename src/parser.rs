@@ -299,14 +299,12 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                         let name = token.text.clone();
                         let mut args = Vec::new();
 
-                        // Require opening parenthesis
                         if self.tokens.next_if(|t| t.kind == TokenKind::OpenParen).is_none() {
                             let mut loc = token.loc.clone();
                             loc.col += token.text.len();
                             diag::fatal!(loc, "expected {} after function name", TokenKind::OpenParen);
                         }
 
-                        // Parse arguments only if not immediately followed by closing parenthesis
                         if self.tokens.peek().map(|t| t.kind) != Some(TokenKind::CloseParen) {
                             args.push(self.parse_expr());
 
@@ -315,12 +313,10 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                             }
                         }
 
-                        // Require closing parenthesis
                         if self.tokens.next_if(|t| t.kind == TokenKind::CloseParen).is_none() {
                             diag::fatal!("expected {} after arguments", TokenKind::CloseParen);
                         }
 
-                        // Require semicolon
                         if self.tokens.next_if(|t| t.kind == TokenKind::Semicolon).is_none() {
                             diag::fatal!("expected {} after function call", TokenKind::Semicolon);
                         }
