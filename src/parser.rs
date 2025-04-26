@@ -360,6 +360,20 @@ fn get_op_precedence(op: &BinaryOp) -> u8 {
     }
 }
 
+pub fn get_variable_position(ast: &Ast, func_name: &str, variable_name: &str) -> usize {
+    if let Some(func) = ast.functions.get(func_name) {
+        if let Some(_) = func.params.iter().find(|param| param.name == variable_name) {
+            let position = func.params.iter().position(|p| p.name == variable_name).unwrap();
+            return position;
+        } else {
+            todo!();
+        }
+    } else {
+        todo!();
+    }
+}
+
+
 impl fmt::Display for Ast {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for (i, (_, function)) in self.functions.iter().enumerate() {

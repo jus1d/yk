@@ -1,4 +1,14 @@
+fn sum(int64 a, int64 b) int64 {
+    ret a + b;
+}
+
+fn inc(int64 x) int64 {
+    ret x + 1;
+}
+
 fn main() int64 {
-    puti(68 / 2 - 1);
+    puti(sum(inc(33), inc(34)));
+    puts("Hello");
+    exit(69);
     ret 0;
 }

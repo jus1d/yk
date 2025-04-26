@@ -20,6 +20,7 @@ pub struct Opts {
     pub input_path: String,
     pub use_custom_output: bool,
     pub output_path: String,
+    pub emit_comments: bool,
 }
 
 impl Opts {
@@ -29,6 +30,7 @@ impl Opts {
             input_path: String::new(),
             use_custom_output: false,
             output_path: String::new(),
+            emit_comments: false,
         };
         opts.program_name = args.next().unwrap();
 
@@ -46,6 +48,9 @@ impl Opts {
                         },
                     }
                 },
+                "--emit-comments" => {
+                    opts.emit_comments = true;
+                }
                 "-h" | "--help" => {
                     usage!(opts.program_name);
                     exit(0);

@@ -32,10 +32,10 @@ fn main() {
                 Ok(file) => file,
                 Err(err) => diag::fatal!("failed to open file `{}`: {}", opts.output_path, err),
             };
-            compiler.compile(&mut file).unwrap();
+            compiler.compile(&mut file, opts.emit_comments).unwrap();
         } else {
             let mut stdout = io::stdout().lock();
-            compiler.compile(&mut stdout).unwrap();
+            compiler.compile(&mut stdout, opts.emit_comments).unwrap();
         };
     } else {
         diag::fatal!("unsupported architecture. only `aarch64` is supported now");

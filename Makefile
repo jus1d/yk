@@ -5,7 +5,7 @@ main.o: main.s
 	as -arch arm64 -o main.o main.s
 
 main.s: main.yk src/*.rs
-	cargo run --release -- -o main.s ./main.yk
+	cargo run --release -- --emit-comments -o main.s ./main.yk
 
 clean:
 	rm main main.o

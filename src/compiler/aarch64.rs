@@ -1,23 +1,24 @@
 use std::io::{self, Write};
 
-use crate::parser::{Ast, Function, Statement, BinaryOp, Expr, Literal};
-use crate::compiler;
+use crate::parser::{self, Ast, BinaryOp, Expr, Function, Literal, Statement};
 
 pub struct Generator<'a, W: Write> {
     output: W,
     ast: &'a Ast,
     strings: Vec<String>,
+    emit_comments: bool,
     use_exit: bool,
     use_puts: bool,
     use_puti: bool,
 }
 
 impl<'a, W: Write> Generator<'a, W> {
-    pub fn new(ast: &'a Ast, output: W) -> Self {
+    pub fn new(ast: &'a Ast, output: W, emit_comments: bool) -> Self {
         Self {
             output,
             ast,
             strings: Vec::new(),
+            emit_comments,
             use_exit: false,
             use_puts: false,
             use_puti: false,
@@ -53,7 +54,7 @@ impl<'a, W: Write> Generator<'a, W> {
         let offset = if offset % 2 == 1 { offset + 1 } else { offset };
         let stack_size = 16 + (offset * 8);
 
-        writeln!(self.output, "    ; prologue")?;
+        self.c("prologue", false)?;
         writeln!(self.output, "    stp     x29, x30, [sp, -{}]!", stack_size)?;
         writeln!(self.output, "    mov     x29, sp")
     }
@@ -62,14 +63,14 @@ impl<'a, W: Write> Generator<'a, W> {
         let offset = if offset % 2 == 1 { offset + 1 } else { offset };
         let stack_size = 16 + (offset * 8);
 
-        writeln!(self.output, "    ; epilogue")?;
+        self.c("epilogue", true)?;
         writeln!(self.output, "    mov     sp, x29")?;
         writeln!(self.output, "    ldp     x29, x30, [sp], {}", stack_size)?;
         writeln!(self.output, "    ret")
     }
 
     fn write_func(&mut self, function: &Function) -> io::Result<()> {
-        writeln!(self.output, "; function {}", function.name)?;
+        self.c(&format!("function {}", function.name), false)?;
         writeln!(self.output, "_{}:", function.name)?;
 
         self.write_func_prologue(function.params.len())?;
@@ -104,23 +105,29 @@ impl<'a, W: Write> Generator<'a, W> {
             _ => {},
         }
 
-        writeln!(self.output, "    ; store args of {}", current_func.name)?;
-        for (i, _) in current_func.params.iter().enumerate() {
-            writeln!(self.output, "    str     x{}, [x29, {}]", i, 16 + 8 * i)?;
+        if current_func.params.len() > 0 {
+            self.c(&format!("store args of {}", current_func.name), true)?;
+            for (i, _) in current_func.params.iter().enumerate() {
+                writeln!(self.output, "    str     x{}, [x29, {}]", i, 16 + 8 * i)?;
+            }
         }
 
-        writeln!(self.output, "    ; load args for {}", callee_name)?;
-        for (i, arg) in args.iter().enumerate() {
-            let reg = format!("x{}", i);
-            self.write_expression(arg, &current_func.name, &reg)?;
+        if args.len() > 0 {
+            self.c(&format!("load args for {}", callee_name), true)?;
+            for (i, arg) in args.iter().enumerate() {
+                let reg = format!("x{}", i);
+                self.write_expression(arg, &current_func.name, &reg)?;
+            }
         }
 
-        writeln!(self.output, "    ; call {}", callee_name)?;
+        self.c(&format!("call {}", callee_name), true)?;
         writeln!(self.output, "    bl      _{}", callee_name)?;
 
-        writeln!(self.output, "    ; restore arguments for {}", current_func.name)?;
-        for (i, _) in current_func.params.iter().enumerate() {
-            writeln!(self.output, "    ldr     x{}, [x29, {}]", i, 16 + 8 * i)?;
+        if current_func.params.len() > 0 {
+            self.c(&format!("restore args for {}", current_func.name), true)?;
+            for (i, _) in current_func.params.iter().enumerate() {
+                writeln!(self.output, "    ldr     x{}, [x29, {}]", i, 16 + 8 * i)?;
+            }
         }
 
         Ok(())
@@ -138,13 +145,13 @@ impl<'a, W: Write> Generator<'a, W> {
     fn write_literal(&mut self, lit: &Literal, reg: &str) -> io::Result<()> {
         match lit {
             Literal::Number(n) => {
-                writeln!(self.output, "    ; number: {}", n)?;
+                self.c(&format!("number {}", n), true)?;
                 writeln!(self.output, "    mov     {}, {}", reg, n)
             },
             Literal::String(text) => {
                 let idx = self.strings.len();
                 self.strings.push(text.clone());
-                writeln!(self.output, "    ; string: \"{}\"", text)?;
+                self.c(&format!("string \"{}\"", text), true)?;
                 writeln!(self.output, "    adrp    {}, string.{}@PAGE", reg, idx)?;
                 writeln!(self.output, "    add     {}, {}, string.{}@PAGEOFF", reg, reg, idx)
             },
@@ -155,7 +162,7 @@ impl<'a, W: Write> Generator<'a, W> {
         self.write_expression(lhs, current_func, "x9")?;
         self.write_expression(rhs, current_func, "x10")?;
 
-        writeln!(self.output, "    ; binop: {} {} {}", lhs, op, rhs)?;
+        self.c(&format!("binop: {} {} {}", lhs, op, rhs), true)?;
 
         match op {
             BinaryOp::Add => writeln!(self.output, "    add     {}, x9, x10", target_reg),
@@ -166,13 +173,13 @@ impl<'a, W: Write> Generator<'a, W> {
     }
 
     fn write_funcall_expr(&mut self, name: &str, args: &[Expr], current_func: &str, target_reg: &str) -> io::Result<()> {
-        writeln!(self.output, "    ; args for funcall {}", name)?;
+        self.c(&format!("args for funcall {}", name), true)?;
         for (i, arg) in args.iter().enumerate() {
             let reg = format!("x{}", i);
             self.write_expression(arg, current_func, &reg)?;
         }
 
-        writeln!(self.output, "    ; call {}", name)?;
+        self.c(&format!("call {}", name), true)?;
         writeln!(self.output, "    bl      _{}", name)?;
 
         if target_reg != "x0" {
@@ -183,16 +190,16 @@ impl<'a, W: Write> Generator<'a, W> {
     }
 
     fn write_variable(&mut self, name: &str, current_func: &str, target_reg: &str) -> io::Result<()> {
-        let src_reg = format!("x{}", compiler::get_variable_position(self.ast, current_func, name));
+        let src_reg = format!("x{}", parser::get_variable_position(self.ast, current_func, name));
         if src_reg != target_reg {
-            writeln!(self.output, "    ; variable {}", name)?;
+            self.c(&format!("variable {}", name), true)?;
             writeln!(self.output, "    mov     {}, {}", target_reg, src_reg)?;
         }
         Ok(())
     }
 
     fn write_puts(&mut self) -> io::Result<()> {
-        writeln!(self.output, "; std::puts")?;
+        self.c("std::puts", false)?;
         writeln!(self.output, "_puts:")?;
         writeln!(self.output, "    mov     x1, x0")?;
         writeln!(self.output, "    mov     x2, 0")?;
@@ -211,7 +218,7 @@ impl<'a, W: Write> Generator<'a, W> {
     }
 
     fn write_puti(&mut self) -> io::Result<()> {
-        writeln!(self.output, "; std::puti")?;
+        self.c("std::puti", false)?;
         writeln!(self.output, "_puti:")?;
         writeln!(self.output, "    stp     x29, x30, [sp, -48]!")?;
         writeln!(self.output, "    mov     x29, sp")?;
@@ -253,7 +260,7 @@ impl<'a, W: Write> Generator<'a, W> {
     }
 
     fn write_exit(&mut self) -> io::Result<()> {
-        writeln!(self.output, "; std::exit")?;
+        self.c("std::exit", false)?;
         writeln!(self.output, "_exit:")?;
         writeln!(self.output, "    mov     x16, 1")?;
         writeln!(self.output, "    svc     0")?;
@@ -266,10 +273,22 @@ impl<'a, W: Write> Generator<'a, W> {
             return Ok(());
         }
 
-        writeln!(self.output, "; data section")?;
+        self.c("data section", false)?;
         for (i, s) in self.strings.iter().enumerate() {
             writeln!(self.output, "string.{}:", i)?;
             writeln!(self.output, "    .asciz \"{}\\n\"", s)?;
+        }
+        Ok(())
+    }
+
+    fn c(&mut self, s: &str, padding: bool) -> io::Result<()> {
+        if self.emit_comments {
+            let pad = if padding {
+                "    "
+            } else {
+                ""
+            };
+            writeln!(self.output, "{}; {}", pad, s)?;
         }
         Ok(())
     }

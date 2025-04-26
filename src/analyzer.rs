@@ -41,7 +41,7 @@ fn typecheck(ast: &Ast) {
 
     for (name, function) in &ast.functions {
         if builtin_funcs.contains_key(name.as_str()) {
-            diag::fatal!("symbol '{name}' is a builtin function name");
+            diag::fatal!("symbol `{name}` is a builtin function name");
         }
 
         let mut vars: Vec<Variable> = vec![];
@@ -112,7 +112,7 @@ fn typecheck_funcall(ast: &Ast, name: &str, args: &[Expr], vars: &Vec<Variable>,
     } else if let Some(func) = user_funcs.get(name) {
         func
     } else {
-        diag::fatal!("call to undeclared function '{name}'");
+        diag::fatal!("call to undeclared function `{name}`");
     };
 
     check_arguments_count(name, args.len(), func.params.len());
@@ -133,10 +133,10 @@ fn typecheck_funcall(ast: &Ast, name: &str, args: &[Expr], vars: &Vec<Variable>,
 fn check_arguments_count(func_name: &str, actual: usize, expected: usize) {
     match actual.cmp(&expected) {
         std::cmp::Ordering::Greater => {
-            diag::fatal!("too many arguments to function call '{func_name}', expected {expected} arguments, have {actual}");
+            diag::fatal!("too many arguments to function call `{func_name}`, expected {expected} arguments, have {actual}");
         }
         std::cmp::Ordering::Less => {
-            diag::fatal!("too few arguments to function call '{func_name}', expected {expected} arguments, have {actual}");
+            diag::fatal!("too few arguments to function call `{func_name}`, expected {expected} arguments, have {actual}");
         }
         std::cmp::Ordering::Equal => {}
     }
@@ -144,15 +144,15 @@ fn check_arguments_count(func_name: &str, actual: usize, expected: usize) {
 
 fn check_entrypoint_declaration(ast: &Ast) {
     if !ast.functions.contains_key("main") {
-        diag::fatal!("entry point not declared. expected: 'fn main() int64'");
+        diag::fatal!("entry point not declared. expected: `fn main() int64`");
     }
 
     let func = ast.functions.get("main").unwrap();
     if func.params.len() > 0 {
-        diag::fatal!("function 'main' should not have parameters");
+        diag::fatal!("function `main` should not have parameters");
     }
     if func.ret_type.as_str() != "int64" {
-        diag::fatal!("unexpected main function declaration, expected 'fn main() int64'");
+        diag::fatal!("unexpected main function declaration, expected `fn main() int64`");
     }
 }
 
