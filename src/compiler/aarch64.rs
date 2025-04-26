@@ -93,7 +93,28 @@ impl<'a, W: Write> Generator<'a, W> {
             }
             Statement::Funcall { name, args } => {
                 self.write_funcall(function, name, args)
-            }
+            },
+            Statement::If { condition, consequence, otherwise } => {
+                // TODO: here I'm generating duplicating labels like 1:, 2: for all if blocks, it may shoot into my leg in the future :)
+                // but maybe it's fine, who knows
+
+                self.write_expression(condition, &function.name, "x0")?;
+                self.c(&format!("check if {} != 0", condition), true)?;
+                writeln!(self.output, "    cmp     x0, 0")?;
+                writeln!(self.output, "    b.eq    1f")?;
+                self.c("consequence", true)?;
+                for statement in consequence {
+                    self.write_statement(function, statement)?;
+                }
+                writeln!(self.output, "    b        2f")?;
+                writeln!(self.output, "1:")?;
+                self.c("otherwise", true)?;
+                for statement in otherwise {
+                    self.write_statement(function, statement)?;
+                }
+                writeln!(self.output, "2:")?;
+                Ok(())
+            },
         }
     }
 

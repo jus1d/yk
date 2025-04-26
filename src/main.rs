@@ -23,7 +23,9 @@ fn main() {
     let mut parser = parser::Parser::from_iter(lexer);
 
     let ast = parser.parse_ast();
-    analyzer::analyze(&ast);
+    if !opts.disable_analyzing {
+        analyzer::analyze(&ast);
+    }
 
     if cfg![target_arch = "aarch64"] {
         let compiler = compiler::Compiler::new(ast);

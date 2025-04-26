@@ -1,6 +1,15 @@
 fn main() int64 {
     if 0 {
-        puts("Hello world!");
+        puts("unreachable");
+    } else {
+        puts("ok");
     }
+
+    if 1 {
+        puts("ok");
+    } else {
+        puts("unreachable");
+    }
+
     ret 0;
 }

@@ -20,6 +20,7 @@ pub struct Opts {
     pub input_path: String,
     pub use_custom_output: bool,
     pub output_path: String,
+    pub disable_analyzing: bool,
     pub emit_comments: bool,
 }
 
@@ -30,6 +31,7 @@ impl Opts {
             input_path: String::new(),
             use_custom_output: false,
             output_path: String::new(),
+            disable_analyzing: false,
             emit_comments: false,
         };
         opts.program_name = args.next().unwrap();
@@ -50,7 +52,10 @@ impl Opts {
                 },
                 "--emit-comments" => {
                     opts.emit_comments = true;
-                }
+                },
+                "--unsafe" => {
+                    opts.disable_analyzing = true;
+                },
                 "-h" | "--help" => {
                     usage!(opts.program_name);
                     exit(0);

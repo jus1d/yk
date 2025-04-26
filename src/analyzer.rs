@@ -73,7 +73,17 @@ fn typecheck_statement(ast: &Ast, func: &Function, statement: &Statement, vars: 
 
                 typecheck_expr(ast, expr, vars, builtin_funcs, &ast.functions);
             }
-        }
+        },
+        Statement::If { condition: _, consequence, otherwise } => {
+            // TODO: check if condition is a boolean
+
+            for s in consequence {
+                typecheck_statement(ast, func, s, vars, builtin_funcs);
+            }
+            for s in otherwise {
+                typecheck_statement(ast, func, s, vars, builtin_funcs);
+            }
+        },
     }
 }
 

@@ -26,8 +26,18 @@ pub struct Variable {
 
 #[derive(Clone)]
 pub enum Statement {
-    Funcall { name: String, args: Vec<Expr> },
-    Ret { value: Option<Expr> },
+    Funcall {
+        name: String,
+        args: Vec<Expr>
+    },
+    If {
+        condition: Expr,
+        consequence: Vec<Statement>,
+        otherwise: Vec<Statement>
+    },
+    Ret {
+        value: Option<Expr>
+    },
 }
 
 #[derive(Clone)]
@@ -294,7 +304,20 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                         }
 
                         return Statement::Ret { value: Some(value) };
-                    }
+                    },
+                    "if" => {
+                        let condition = self.parse_expr();
+
+                        let consequence = self.parse_block();
+
+                        if self.tokens.next_if(|t| t.kind == TokenKind::Word || &t.text == "else").is_some() {
+                            let otherwise = self.parse_block();
+
+                            return Statement::If { condition, consequence, otherwise }
+                        }
+
+                        return Statement::If { condition, consequence, otherwise: Vec::new() }
+                    },
                     _ => {
                         let name = token.text.clone();
                         let mut args = Vec::new();
@@ -417,6 +440,18 @@ impl fmt::Display for Statement {
                 Some(value) => write!(f, "ret {};", value),
                 None => write!(f, "ret;"),
             },
+            Statement::If { condition, consequence, otherwise } => {
+                writeln!(f, "if {} {{", condition)?;
+                for stmt in consequence {
+                    writeln!(f, "    {}", stmt)?;
+                }
+                write!(f, "    }}")?;
+                writeln!(f, "else {} {{", condition)?;
+                for stmt in otherwise {
+                    writeln!(f, "    {}", stmt)?;
+                }
+                write!(f, "    }}")
+            }
         }
     }
 }
