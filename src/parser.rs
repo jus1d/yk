@@ -14,12 +14,12 @@ pub struct Ast {
 pub struct Function {
     pub name: String,
     pub ret_type: String,
-    pub params: Vec<Param>,
+    pub params: Vec<Variable>,
     pub body: Vec<Statement>,
 }
 
 #[derive(Clone)]
-pub struct Param {
+pub struct Variable {
     pub name: String,
     pub typ: String,
 }
@@ -80,7 +80,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
         return program;
     }
 
-    pub fn parse_param(&mut self) -> Option<Param> {
+    pub fn parse_param(&mut self) -> Option<Variable> {
         match self.tokens.peek() {
             Some(token) => match token.kind {
                 TokenKind::Word => {
@@ -95,7 +95,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                             diag::fatal!(token.loc, "expected token kind {}, got {}", TokenKind::Word, token.kind);
                         }
 
-                        return Some(Param {
+                        return Some(Variable {
                             typ,
                             name: token.text,
                         });

@@ -1,19 +1,19 @@
 use std::collections::HashMap;
 
-use crate::parser::{Ast, Statement, Function, Param, Expr};
+use crate::parser::{Ast, Statement, Function, Variable, Expr, Literal};
 use crate::diag;
 
 pub fn analyze(ast: &Ast) {
     check_entrypoint_declaration(ast);
-    check_funcs_and_calls(ast);
+    typecheck(ast);
 }
 
-fn check_funcs_and_calls(ast: &Ast) {
+fn typecheck(ast: &Ast) {
     let builtin_funcs = HashMap::from([
         ("puts", Function {
             name: String::from("puts"),
             ret_type: String::from("void"),
-            params: vec![Param {
+            params: vec![Variable {
                 name: String::from("str"),
                 typ: String::from("string"),
             }],
@@ -22,7 +22,7 @@ fn check_funcs_and_calls(ast: &Ast) {
         ("exit", Function {
             name: String::from("exit"),
             ret_type: String::from("never"),
-            params: vec![Param {
+            params: vec![Variable {
                 name: String::from("code"),
                 typ: String::from("int64"),
             }],
@@ -30,35 +30,94 @@ fn check_funcs_and_calls(ast: &Ast) {
         }),
     ]);
 
-    for (name, _) in &ast.functions {
+    for (name, function) in &ast.functions {
         if builtin_funcs.contains_key(name.as_str()) {
             diag::fatal!("symbol '{name}' is a builtin function name");
         }
-    }
 
-    for function in ast.functions.values() {
+        let mut vars: Vec<Variable> = vec![];
+        for param in &function.params {
+            vars.push(Variable {
+                name: param.name.clone(),
+                typ: param.typ.clone(),
+            });
+        }
+
         for statement in &function.body {
-            match statement {
-                Statement::Funcall { name, args } => {
-                    validate_funcall(name, args, &builtin_funcs, &ast.functions);
-                },
-                Statement::Ret { value: _ } => {
-                    // TODO: check return type matches function's declared return type
+            typecheck_statement(ast, function, statement, &vars, &builtin_funcs);
+        }
+    }
+}
+
+fn typecheck_statement(ast: &Ast, func: &Function, statement: &Statement, vars: &Vec<Variable>, builtin_funcs: &HashMap<&str, Function>) {
+    match statement {
+        Statement::Funcall { name, args } => {
+            typecheck_funcall(ast, name, args, vars, &builtin_funcs, &ast.functions);
+        },
+        Statement::Ret { value } => {
+            if let Some(expr) = value {
+                let expected_type = &func.ret_type;
+                let actual_type = &get_expr_type(ast, expr, vars);
+                if actual_type != expected_type {
+                    diag::fatal!("mismatched type of return expression. expected `{}`, but got `{}`", expected_type, actual_type);
                 }
+
+                typecheck_expr(ast, expr, vars, builtin_funcs, &ast.functions);
             }
         }
     }
 }
 
-fn validate_funcall(name: &str, args: &[Expr], builtin_funcs: &HashMap<&str, Function>, user_funcs: &HashMap<String, Function>) {
-    // TODO: type check function arguments against expected params
-    if builtin_funcs.contains_key(name) {
-        let expected_params = &builtin_funcs[name].params;
-        check_arguments_count(name, args.len(), expected_params.len());
-    } else if let Some(user_func) = user_funcs.get(name) {
-        check_arguments_count(name, args.len(), user_func.params.len());
+fn typecheck_expr(ast: &Ast, expr: &Expr, vars: &Vec<Variable>, builtin_funcs: &HashMap<&str, Function>, user_funcs: &HashMap<String, Function>) {
+    match expr {
+        Expr::Literal(_) => {}
+        Expr::Binary { op: _, lhs, rhs } => {
+            if &get_expr_type(ast, lhs, vars) != "int64" {
+                diag::fatal!("binary operations only supported for type `int64`");
+            }
+
+            if &get_expr_type(ast, rhs, vars) != "int64" {
+                diag::fatal!("binary operations only supported for type `int64`");
+            }
+        }
+        Expr::Funcall { name, args } => {
+            typecheck_funcall(ast, name, args, vars, builtin_funcs, user_funcs);
+        }
+        Expr::Variable(name) => {
+            let mut found = false;
+            for var in vars {
+                if var.name == *name {
+                    found = true;
+                }
+            }
+            if !found {
+                diag::fatal!("variable `{}` not found in this scope", name);
+            }
+        }
+    }
+}
+
+fn typecheck_funcall(ast: &Ast, name: &str, args: &[Expr], vars: &Vec<Variable>, builtin_funcs: &HashMap<&str, Function>, user_funcs: &HashMap<String, Function>) {
+    let func = if builtin_funcs.contains_key(name) {
+        &builtin_funcs[name]
+    } else if let Some(func) = user_funcs.get(name) {
+        func
     } else {
         diag::fatal!("call to undeclared function '{name}'");
+    };
+
+    check_arguments_count(name, args.len(), func.params.len());
+
+    for i in 0..func.params.len() {
+        let expected_type = &func.params[i].typ;
+        let actual_type = &get_expr_type(ast, &args[i], vars);
+        if expected_type != actual_type {
+            diag::fatal!("mismatched arguments types. expected `{}`, but got `{}`", expected_type, actual_type);
+        }
+    }
+
+    for arg in args {
+        typecheck_expr(ast, arg, vars, builtin_funcs, user_funcs);
     }
 }
 
@@ -85,5 +144,35 @@ fn check_entrypoint_declaration(ast: &Ast) {
     }
     if func.ret_type.as_str() != "int64" {
         diag::fatal!("unexpected main function declaration, expected 'fn main() int64'");
+    }
+}
+
+fn get_expr_type(ast: &Ast, expr: &Expr, vars: &Vec<Variable>) -> String {
+    match expr {
+        Expr::Literal(literal) => match literal {
+            Literal::Number(_) => return String::from("int64"),
+            Literal::String(_) => return String::from("string"),
+        },
+        Expr::Binary { op: _, lhs: _, rhs: _ } => {
+            return String::from("int64");
+        },
+        Expr::Funcall { name, args: _ } => {
+            for (func_name, func) in ast.functions.clone() {
+                if func_name == *name {
+                    return func.ret_type;
+                }
+            }
+
+            diag::fatal!("function `{}` not found in this scope", name);
+        },
+        Expr::Variable(name) => {
+            for var in vars {
+                if var.name == *name {
+                    return var.typ.clone();
+                }
+            }
+
+            diag::fatal!("variable `{}` not found in this scope", name);
+        },
     }
 }
