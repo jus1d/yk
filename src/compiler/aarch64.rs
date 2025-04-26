@@ -222,6 +222,18 @@ impl<'a, W: Write> Generator<'a, W> {
         writeln!(self.output, "_puti:")?;
         writeln!(self.output, "    stp     x29, x30, [sp, -48]!")?;
         writeln!(self.output, "    mov     x29, sp")?;
+        writeln!(self.output, "    cmp     x0, 0")?;
+        writeln!(self.output, "    b.ge    1f")?;
+        writeln!(self.output, "    neg     x0, x0")?;
+        writeln!(self.output, "    str     x0, [sp, 16]")?;
+        writeln!(self.output, "    mov  x0, 1")?;
+        writeln!(self.output, "    adrp x1, minus_char@PAGE")?;
+        writeln!(self.output, "    add  x1, x1, minus_char@PAGEOFF")?;
+        writeln!(self.output, "    mov  x2, 1")?;
+        writeln!(self.output, "    mov  x16, 4")?;
+        writeln!(self.output, "    svc  0")?;
+        writeln!(self.output, "    ldr     x0, [sp, 16]")?;
+        writeln!(self.output, "1:")?;
         writeln!(self.output, "    mov     x9, 0xCCCC")?;
         writeln!(self.output, "    movk    x9, 0xCCCC, lsl 16")?;
         writeln!(self.output, "    movk    x9, 0xCCCC, lsl 32")?;
@@ -231,11 +243,11 @@ impl<'a, W: Write> Generator<'a, W> {
         writeln!(self.output, "    add     x2, x29, 46")?;
         writeln!(self.output, "    mov     x5, x0")?;
         writeln!(self.output, "    cmp     x5, 0")?;
-        writeln!(self.output, "    b.ne    1f")?;
+        writeln!(self.output, "    b.ne    2f")?;
         writeln!(self.output, "    mov     w0, 48")?;
         writeln!(self.output, "    strb    w0, [x2], -1")?;
         writeln!(self.output, "    b       2f")?;
-        writeln!(self.output, "1:")?;
+        writeln!(self.output, "2:")?;
         writeln!(self.output, "    umulh   x11, x5, x9")?;
         writeln!(self.output, "    lsr     x11, x11, 3")?;
         writeln!(self.output, "    add     x12, x11, x11, lsl 2")?;
@@ -245,8 +257,8 @@ impl<'a, W: Write> Generator<'a, W> {
         writeln!(self.output, "    strb    w12, [x2], -1")?;
         writeln!(self.output, "    mov     x5, x11")?;
         writeln!(self.output, "    cmp     x5, 0")?;
-        writeln!(self.output, "    b.ne    1b")?;
-        writeln!(self.output, "2:")?;
+        writeln!(self.output, "    b.ne    2b")?;
+        writeln!(self.output, "3:")?;
         writeln!(self.output, "    add     x1, x2, 1")?;
         writeln!(self.output, "    add     x3, x29, 48")?;
         writeln!(self.output, "    sub     x2, x3, x1")?;
@@ -269,11 +281,10 @@ impl<'a, W: Write> Generator<'a, W> {
     }
 
     fn write_data_section(&mut self) -> io::Result<()> {
-        if self.strings.is_empty() {
-            return Ok(());
-        }
-
         self.c("data section", false)?;
+        writeln!(self.output, "minus_char:")?;
+        writeln!(self.output, "    .asciz \"-\"")?;
+
         for (i, s) in self.strings.iter().enumerate() {
             writeln!(self.output, "string.{}:", i)?;
             writeln!(self.output, "    .asciz \"{}\\n\"", s)?;
