@@ -1,3 +1,6 @@
+// TODO: function args are corrupted, when I call puts/exit from function.
+// I have to play with SP, when one function calls another
+
 use crate::parser::{Ast, Function, Statement, BinaryOp, Expr, Literal};
 use crate::compiler;
 
@@ -41,7 +44,7 @@ fn generate_aarch64_darwin_func_body<W: Write>(ast: &Ast, out: &mut W, strings: 
     for statement in &function.body {
         generate_aarch64_darwin_statement(ast, out, statement, strings, &function.name)?;
     }
-    generate_aarch64_darwin_func_epilogue(out)?;
+    writeln!(out)?;
 
     Ok(())
 }
@@ -99,9 +102,8 @@ fn generate_aarch64_darwin_statement<W: Write>(ast: &Ast, out: &mut W, statement
         Statement::Ret { value } => {
             if let Some(expr) = value {
                 generate_aarch64_darwin_expression(ast, out, &expr, strings, current_func_name, "x0")?;
-            } else {
-                writeln!(out, "    ret")?;
             }
+            generate_aarch64_darwin_func_epilogue(out)?;
         }
         Statement::Funcall { name, args } => {
             for (i, arg) in args.iter().enumerate() {
@@ -141,11 +143,11 @@ fn generate_aarch64_darwin_expression<W: Write>(ast: &Ast, out: &mut W, expr: &E
             writeln!(out, "    bl      _{}", name)?;
         },
         Expr::Variable(name) => {
-            let src = register;
-            let dst = &format!("x{}", compiler::get_variable_position(ast, current_func_name, name));
+            let src = &format!("x{}", compiler::get_variable_position(ast, current_func_name, name));
+            let dst = register;
             if src != dst {
                 writeln!(out, "    ; variable {}", name)?;
-                writeln!(out, "    mov     {}, x{}", dst, src)?;
+                writeln!(out, "    mov     {}, {}", dst, src)?;
             }
         },
     }
