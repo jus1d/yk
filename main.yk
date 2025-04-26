@@ -1,7 +1,9 @@
 fn main() int64 {
     if 0 {
         puts("unreachable");
-    } else {
+    }
+
+    if 1 {
         puts("ok");
     }
 
@@ -9,6 +11,12 @@ fn main() int64 {
         puts("ok");
     } else {
         puts("unreachable");
+    }
+
+    if 0 {
+        puts("unreachable");
+    } else {
+        puts("ok");
     }
 
     ret 0;

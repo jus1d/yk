@@ -310,7 +310,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
 
                         let consequence = self.parse_block();
 
-                        if self.tokens.next_if(|t| t.kind == TokenKind::Word || &t.text == "else").is_some() {
+                        if self.tokens.next_if(|t| t.kind == TokenKind::Word && &t.text == "else").is_some() {
                             let otherwise = self.parse_block();
 
                             return Statement::If { condition, consequence, otherwise }
