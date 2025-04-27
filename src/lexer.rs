@@ -15,6 +15,7 @@ pub enum TokenKind {
     OpenCurly,
     CloseCurly,
 
+    Colon,
     Semicolon,
     Comma,
 
@@ -46,6 +47,7 @@ impl fmt::Display for TokenKind {
                 TokenKind::CloseParen => "`)`",
                 TokenKind::OpenCurly => "`{`",
                 TokenKind::CloseCurly => "`}`",
+                TokenKind::Colon => "`;`",
                 TokenKind::Semicolon => "`;`",
                 TokenKind::Comma => "`,`",
                 TokenKind::Plus => "`+`",
@@ -213,6 +215,7 @@ impl<Chars: Iterator<Item = char> + Clone> Iterator for Lexer<Chars> {
             '{' => return Some(Token::with_text(TokenKind::OpenCurly, &text, loc)),
             '}' => return Some(Token::with_text(TokenKind::CloseCurly, &text, loc)),
             ';' => return Some(Token::with_text(TokenKind::Semicolon, &text, loc)),
+            ':' => return Some(Token::with_text(TokenKind::Colon, &text, loc)),
             ',' => return Some(Token::with_text(TokenKind::Comma, &text, loc)),
             '+' => return Some(Token::with_text(TokenKind::Plus, &text, loc)),
             // TODO: parse negative integer

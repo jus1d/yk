@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::parser::{Ast, BinaryOp, Expr, Function, Literal, Statement, Variable};
+use crate::parser::{Ast, BinaryOp, Expr, Function, Literal, Statement, Variable, KEYWORDS};
 use crate::diag;
 
 pub fn analyze(ast: &Ast) {
@@ -53,12 +53,12 @@ fn typecheck(ast: &Ast) {
         }
 
         for statement in &function.body {
-            typecheck_statement(ast, function, statement, &vars, &builtin_funcs);
+            typecheck_statement(ast, function, statement, &mut vars, &builtin_funcs);
         }
     }
 }
 
-fn typecheck_statement(ast: &Ast, func: &Function, statement: &Statement, vars: &Vec<Variable>, builtin_funcs: &HashMap<&str, Function>) {
+fn typecheck_statement(ast: &Ast, func: &Function, statement: &Statement, vars: &mut Vec<Variable>, builtin_funcs: &HashMap<&str, Function>) {
     match statement {
         Statement::Funcall { name, args } => {
             typecheck_funcall(ast, name, args, vars, &builtin_funcs, &ast.functions);
@@ -99,6 +99,23 @@ fn typecheck_statement(ast: &Ast, func: &Function, statement: &Statement, vars: 
                 typecheck_statement(ast, func, s, vars, builtin_funcs);
             }
         },
+        Statement::Declaration { name, typ, value } => {
+            if KEYWORDS.contains(&name.as_str()) {
+                diag::fatal!("variable name collides with reserved keyword `{}`", name);
+            }
+
+            if let Some(expr) = value {
+                let value_type = get_expr_type(ast, expr, vars);
+                if value_type != *typ {
+                    diag::fatal!("expected expression of type `{}`, but got `{}`", typ, value_type);
+                }
+            }
+
+            vars.push(Variable {
+                name: name.clone(),
+                typ: typ.clone(),
+            });
+        }
     }
 }
 

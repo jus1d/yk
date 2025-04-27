@@ -45,6 +45,11 @@ pub enum Statement {
         condition: Option<Expr>,
         block: Vec<Statement>,
     },
+    Declaration {
+        name: String,
+        typ: String,
+        value: Option<Expr>,
+    },
     Ret {
         value: Option<Expr>
     },
@@ -91,7 +96,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
     pub fn parse_ast(&mut self) -> Ast {
         let mut program = Ast { functions: HashMap::new() };
 
-        while let Some(function) = self.parse_fn() {
+        while let Some(function) = self.parse_function() {
             program.functions.insert(function.name.clone(), function);
         }
 
@@ -127,7 +132,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
         }
     }
 
-    pub fn parse_fn(&mut self) -> Option<Function> {
+    pub fn parse_function(&mut self) -> Option<Function> {
         let kw = self.tokens.next()?;
         if kw.kind != TokenKind::Word || kw.text != "fn" {
             diag::fatal!(kw.loc, "unexpected token. expected keyword `fn`, got `{}`", kw.text);
@@ -205,7 +210,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
         }
 
         loop {
-            statements.push(self.parse_stmt());
+            statements.push(self.parse_statement());
             if let Some(token) = self.tokens.peek() {
                 if token.kind == TokenKind::CloseCurly {
                     break;
@@ -223,7 +228,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
         return statements;
     }
 
-    pub fn parse_expr(&mut self) -> Expr {
+    pub fn parse_expression(&mut self) -> Expr {
         self.parse_expr_prec(0)
     }
 
@@ -286,9 +291,9 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                         let mut args = Vec::new();
 
                         if self.tokens.peek().is_some_and(|t| t.kind != TokenKind::CloseParen) {
-                            args.push(self.parse_expr());
+                            args.push(self.parse_expression());
                             while self.tokens.next_if(|t| t.kind == TokenKind::Comma).is_some() {
-                                args.push(self.parse_expr());
+                                args.push(self.parse_expression());
                             }
                         }
 
@@ -302,7 +307,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                     }
                 }
                 TokenKind::OpenParen => {
-                    let expr = self.parse_expr();
+                    let expr = self.parse_expression();
                     self.expect(TokenKind::CloseParen);
                     return expr;
                 }
@@ -313,7 +318,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
         }
     }
 
-    pub fn parse_stmt(&mut self) -> Statement {
+    pub fn parse_statement(&mut self) -> Statement {
         match self.tokens.next() {
             Some(token) => match token.kind {
                 TokenKind::Word => match token.text.as_str() {
@@ -322,7 +327,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                             return Statement::Ret { value: None };
                         }
 
-                        let value = self.parse_expr();
+                        let value = self.parse_expression();
                         if self.tokens.next_if(|t| t.kind == TokenKind::Semicolon).is_none() {
                             diag::fatal!(token.loc, "missing semicolon after return");
                         }
@@ -330,7 +335,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                         return Statement::Ret { value: Some(value) };
                     },
                     "if" => {
-                        let condition = self.parse_expr();
+                        let condition = self.parse_expression();
 
                         let consequence = self.parse_block();
 
@@ -351,10 +356,51 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                             }
                         }
 
-                        let condition = self.parse_expr();
+                        let condition = self.parse_expression();
                         let block = self.parse_block();
 
                         return Statement::While { condition: Some(condition), block };
+                    },
+                    "let" => {
+                        let name = match self.tokens.next() {
+                            Some(token) => {
+                                if token.kind == TokenKind::Word {
+                                    token.text
+                                } else {
+                                    diag::fatal!("expected identifier, got `{}`", token.text);
+                                }
+                            },
+                            None => {
+                                diag::fatal!("expected identifier, got EOF");
+                            }
+                        };
+
+                        self.expect(TokenKind::Colon);
+
+                        let typ = match self.tokens.next() {
+                            Some(token) => {
+                                if token.kind == TokenKind::Word && is_type(&token.text) {
+                                    token.text
+                                } else {
+                                    diag::fatal!("expected type, got `{}`", token.text);
+                                }
+                            },
+                            None => {
+                                diag::fatal!("expected type, got EOF");
+                            }
+                        };
+
+                        if self.tokens.next_if(|token| token.kind == TokenKind::Semicolon).is_some() {
+                            return Statement::Declaration { name, typ, value: None };
+                        }
+
+                        self.expect(TokenKind::Equals);
+
+                        let value = self.parse_expression();
+
+                        self.expect(TokenKind::Semicolon);
+
+                        return Statement::Declaration { name, typ, value: Some(value) };
                     },
                     _ => {
                         // Function call
@@ -368,10 +414,10 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                         }
 
                         if self.tokens.peek().map(|t| t.kind) != Some(TokenKind::CloseParen) {
-                            args.push(self.parse_expr());
+                            args.push(self.parse_expression());
 
                             while self.tokens.next_if(|t| t.kind == TokenKind::Comma).is_some() {
-                                args.push(self.parse_expr());
+                                args.push(self.parse_expression());
                             }
                         }
 
@@ -426,6 +472,16 @@ pub fn get_variable_position(name: &str, func: &Function) -> usize {
         let position = func.params.iter().position(|p| p.name == name).unwrap();
         return position;
     } else {
+        let mut position = func.params.len();
+        for statement in &func.body {
+            if let Statement::Declaration { name: declared, .. } = statement {
+                position += 1;
+                if name == declared {
+                    return position;
+                }
+            }
+        }
+
         todo!();
     }
 }
@@ -505,6 +561,15 @@ impl fmt::Display for Statement {
                 Some(value) => write!(f, "ret {};", value),
                 None => write!(f, "ret;"),
             },
+            Statement::Declaration { name, typ, value } => {
+                if let Some(expr) = value {
+                    write!(f, "let {}: {} = {}", name, typ, expr)?;
+                } else {
+                    write!(f, "let {}: {};", name, typ)?;
+                }
+
+                Ok(())
+            }
         }
     }
 }

@@ -63,7 +63,8 @@ impl<'a, W: Write> Generator<'a, W> {
         writeln!(self.output, "_{}:", func.name)?;
 
         let params_count = func.params.len();
-        self.write_func_prologue(params_count)?;
+        let declarations_count = func.body.iter().filter(|s| matches!(s, Statement::Declaration { .. })).count();
+        self.write_func_prologue(params_count + declarations_count)?;
 
         self.c("push locals onto the stack", true)?;
         for i in 0..params_count {
@@ -72,11 +73,11 @@ impl<'a, W: Write> Generator<'a, W> {
 
         self.c("body", true)?;
         for statement in &func.body {
-            self.write_statement(statement, func)?;
+            self.write_statement(statement, func, declarations_count)?;
         }
 
         if !func.body.iter().any(|s| matches!(s, Statement::Ret { .. })) {
-            self.write_func_epilogue(params_count)?;
+            self.write_func_epilogue(params_count + declarations_count)?;
         }
 
         writeln!(self.output)?;
@@ -100,13 +101,13 @@ impl<'a, W: Write> Generator<'a, W> {
         writeln!(self.output, "    ret")
     }
 
-    fn write_statement(&mut self, statement: &Statement, current_func: &Function) -> io::Result<()> {
+    fn write_statement(&mut self, statement: &Statement, current_func: &Function, declarations_count: usize) -> io::Result<()> {
         match statement {
             Statement::Ret { value } => {
                 if let Some(expr) = value {
                     self.write_expression(expr, current_func, "x0")?;
                 }
-                self.write_func_epilogue(current_func.params.len())
+                self.write_func_epilogue(current_func.params.len() + declarations_count)
             }
             Statement::If { condition, consequence, otherwise } => {
                 let else_label = self.label();
@@ -119,14 +120,14 @@ impl<'a, W: Write> Generator<'a, W> {
 
                 self.c("consequence", true)?;
                 for statement in consequence {
-                    self.write_statement(statement, current_func)?;
+                    self.write_statement(statement, current_func, declarations_count)?;
                 }
                 writeln!(self.output, "    b       {}", end_label)?;
 
                 writeln!(self.output, "{}:", else_label)?;
                 self.c("otherwise", true)?;
                 for statement in otherwise {
-                    self.write_statement(statement, current_func)?;
+                    self.write_statement(statement, current_func, declarations_count)?;
                 }
 
                 writeln!(self.output, "{}:", end_label)?;
@@ -148,7 +149,7 @@ impl<'a, W: Write> Generator<'a, W> {
                 }
 
                 for s in block {
-                    self.write_statement(s, current_func)?;
+                    self.write_statement(s, current_func, declarations_count)?;
                 }
                 writeln!(self.output, "    b       {}", start_label)?;
                 writeln!(self.output, "{}:", end_label)?;
@@ -156,6 +157,14 @@ impl<'a, W: Write> Generator<'a, W> {
             },
             Statement::Funcall { name, args } => {
                 self.write_funcall(name, args, current_func, "x0")
+            },
+            Statement::Declaration { name, typ: _, value } => {
+                if let Some(expr) = value {
+                    self.write_expression(expr, current_func, "x8")?;
+                    writeln!(self.output, "    str     x8, [x29, {}]", 16 + parser::get_variable_position(name, current_func) * 8)?;
+                }
+
+                Ok(())
             },
         }
     }
