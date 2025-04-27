@@ -158,7 +158,15 @@ impl<Chars: Iterator<Item = char> + Clone> Iterator for Lexer<Chars> {
             while let Some(ch) = self.chars.next() {
                 self.cur += 1;
                 match ch {
-                    '\\' => diag::fatal!(loc, "escaping strings is not supported yet"),
+                    '\\' => {
+                        self.cur += 1;
+                        if let Some(ch) = self.chars.next() {
+                            match ch {
+                                'n' => text.push('\n'),
+                                _ => diag::fatal!(loc, "only escaping new lines supported yet")
+                            }
+                        }
+                    },
                     '"' => return Some(Token::with_text(TokenKind::String, text, loc)),
                     _ => text.push(ch),
                 }

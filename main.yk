@@ -1,17 +1,4 @@
-fn loop(int64 i) {
-    while i {
-        if 1 {
-            puts("i = ");
-            puti(i);
-        }
-        else {
-            puti(i);
-        }
-    }
-    ret;
-}
-
 fn main() int64 {
-    loop(69);
+    puts("Hello world!\n");
     ret 0;
 }

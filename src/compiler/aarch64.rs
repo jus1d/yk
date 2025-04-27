@@ -323,8 +323,9 @@ impl<'a, W: Write> Generator<'a, W> {
         writeln!(self.output, "    .asciz \"-\"")?;
 
         for (i, s) in self.strings.iter().enumerate() {
+            let escaped = s.replace("\n", "\\n");
             writeln!(self.output, "string.{}:", i)?;
-            writeln!(self.output, "    .asciz \"{}\\n\"", s)?;
+            writeln!(self.output, "    .asciz \"{}\"", escaped)?;
         }
         Ok(())
     }

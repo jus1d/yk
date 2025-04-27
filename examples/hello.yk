@@ -1,4 +1,4 @@
 fn main() int64 {
-    puts("Hello world!");
+    puts("Hello world!\n");
     ret 0;
 }
