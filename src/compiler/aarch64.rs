@@ -6,6 +6,7 @@ pub struct Generator<'a, W: Write> {
     output: W,
     ast: &'a Ast,
     strings: Vec<String>,
+    label_counter: usize,
     emit_comments: bool,
     use_exit: bool,
     use_puts: bool,
@@ -18,11 +19,18 @@ impl<'a, W: Write> Generator<'a, W> {
             output,
             ast,
             strings: Vec::new(),
+            label_counter: 0,
             emit_comments,
             use_exit: false,
             use_puts: false,
             use_puti: false,
         }
+    }
+
+    fn label(&mut self) -> String {
+        let l = format!("L{}", self.label_counter);
+        self.label_counter += 1;
+        return l;
     }
 
     pub fn generate(&mut self) -> io::Result<()> {
@@ -50,6 +58,30 @@ impl<'a, W: Write> Generator<'a, W> {
         Ok(())
     }
 
+    fn write_func(&mut self, function: &Function) -> io::Result<()> {
+        self.c(&format!("function {}", function.name), false)?;
+        writeln!(self.output, "_{}:", function.name)?;
+
+        self.write_func_prologue(function.params.len())?;
+
+        self.c("push locals onto the stack", true)?;
+        for i in 0..function.params.len() {
+            writeln!(self.output, "    str     x{}, [x29, {}]", i, 16 + 8 * i)?;
+        }
+
+        self.c("body", true)?;
+        for statement in &function.body {
+            self.write_statement(function, statement)?;
+        }
+
+        if !function.body.iter().any(|s| matches!(s, Statement::Ret { .. })) {
+            self.write_func_epilogue(function.params.len())?;
+        }
+
+        writeln!(self.output)?;
+        Ok(())
+    }
+
     fn write_func_prologue(&mut self, offset: usize) -> io::Result<()> {
         let offset = if offset % 2 == 1 { offset + 1 } else { offset };
         let stack_size = 16 + (offset * 8);
@@ -69,20 +101,6 @@ impl<'a, W: Write> Generator<'a, W> {
         writeln!(self.output, "    ret")
     }
 
-    fn write_func(&mut self, function: &Function) -> io::Result<()> {
-        self.c(&format!("function {}", function.name), false)?;
-        writeln!(self.output, "_{}:", function.name)?;
-
-        self.write_func_prologue(function.params.len())?;
-
-        for statement in &function.body {
-            self.write_statement(function, statement)?;
-        }
-
-        writeln!(self.output)?;
-        Ok(())
-    }
-
     fn write_statement(&mut self, function: &Function, statement: &Statement) -> io::Result<()> {
         match statement {
             Statement::Ret { value } => {
@@ -92,89 +110,62 @@ impl<'a, W: Write> Generator<'a, W> {
                 self.write_func_epilogue(function.params.len())
             }
             Statement::If { condition, consequence, otherwise } => {
-                // TODO: here I'm generating duplicating labels like 1:, 2: for all if blocks, it may shoot into my leg in the future :)
-                // but maybe it's fine, who knows
+                let else_label = self.label();
+                let end_label = self.label();
 
                 self.write_expression(condition, &function.name, "x11")?;
-                self.c(&format!("check if {} != 0", condition), true)?;
+                self.c(&format!("check condition: {}", condition), true)?;
                 writeln!(self.output, "    cmp     x11, 0")?;
-                writeln!(self.output, "    b.eq    1f")?;
+                writeln!(self.output, "    b.eq    {}", else_label)?;
+
                 self.c("consequence", true)?;
                 for statement in consequence {
                     self.write_statement(function, statement)?;
                 }
-                writeln!(self.output, "    b       2f")?;
-                writeln!(self.output, "1:")?;
+                writeln!(self.output, "    b       {}", end_label)?;
+
+                writeln!(self.output, "{}:", else_label)?;
                 self.c("otherwise", true)?;
                 for statement in otherwise {
                     self.write_statement(function, statement)?;
                 }
-                writeln!(self.output, "2:")?;
+
+                writeln!(self.output, "{}:", end_label)?;
                 Ok(())
             },
             Statement::While { condition, block } => {
-                writeln!(self.output, "3:")?;
+                let start_label = self.label();
+                let end_label = self.label();
+
+                writeln!(self.output, "{}:", start_label)?;
                 if let Some(expr) = condition {
                     self.write_expression(expr, &function.name, "x12")?;
+                    writeln!(self.output, "    cmp     x12, 0")?;
+                    writeln!(self.output, "    b.eq    {}", end_label)?;
                 } else {
                     writeln!(self.output, "    mov     x12, 1")?;
+                    writeln!(self.output, "    cmp     x12, 0")?;
+                    writeln!(self.output, "    b.eq    {}", end_label)?;
                 }
-                writeln!(self.output, "    cmp     x12, 0")?;
-                writeln!(self.output, "    b.eq    4f")?;
+
                 for s in block {
                     self.write_statement(function, s)?;
                 }
-                writeln!(self.output, "    b       3b")?;
-                writeln!(self.output, "4:")?;
+                writeln!(self.output, "    b       {}", start_label)?;
+                writeln!(self.output, "{}:", end_label)?;
                 Ok(())
             },
             Statement::Funcall { name, args } => {
-                self.write_funcall(function, name, args)
+                self.write_funcall(&function.name, name, args, "x0")
             },
         }
-    }
-
-    fn write_funcall(&mut self, current_func: &Function, callee_name: &str, args: &[Expr]) -> io::Result<()> {
-        match callee_name {
-            "exit" => self.use_exit = true,
-            "puts" => self.use_puts = true,
-            "puti" => self.use_puti = true,
-            _ => {},
-        }
-
-        if current_func.params.len() > 0 {
-            self.c(&format!("store args of {}", current_func.name), true)?;
-            for (i, _) in current_func.params.iter().enumerate() {
-                writeln!(self.output, "    str     x{}, [x29, {}]", i, 16 + 8 * i)?;
-            }
-        }
-
-        if args.len() > 0 {
-            self.c(&format!("load args for {}", callee_name), true)?;
-            for (i, arg) in args.iter().enumerate() {
-                let reg = format!("x{}", i);
-                self.write_expression(arg, &current_func.name, &reg)?;
-            }
-        }
-
-        self.c(&format!("call {}", callee_name), true)?;
-        writeln!(self.output, "    bl      _{}", callee_name)?;
-
-        if current_func.params.len() > 0 {
-            self.c(&format!("restore args for {}", current_func.name), true)?;
-            for (i, _) in current_func.params.iter().enumerate() {
-                writeln!(self.output, "    ldr     x{}, [x29, {}]", i, 16 + 8 * i)?;
-            }
-        }
-
-        Ok(())
     }
 
     fn write_expression(&mut self, expr: &Expr, current_func: &str, target_reg: &str) -> io::Result<()> {
         match expr {
             Expr::Literal(lit) => self.write_literal(lit, target_reg),
             Expr::Binary { op, lhs, rhs } => self.write_binary_expr(op, lhs, rhs, current_func, target_reg),
-            Expr::Funcall { name, args } => self.write_funcall_expr(name, args, current_func, target_reg),
+            Expr::Funcall { name, args } => self.write_funcall(current_func, name, args, target_reg),
             Expr::Variable(name) => self.write_variable(name, current_func, target_reg),
         }
     }
@@ -182,13 +173,13 @@ impl<'a, W: Write> Generator<'a, W> {
     fn write_literal(&mut self, lit: &Literal, reg: &str) -> io::Result<()> {
         match lit {
             Literal::Number(n) => {
-                self.c(&format!("number {}", n), true)?;
+                self.c(&format!("number: {}", n), true)?;
                 writeln!(self.output, "    mov     {}, {}", reg, n)
             },
             Literal::String(text) => {
                 let idx = self.strings.len();
                 self.strings.push(text.clone());
-                self.c(&format!("string \"{}\"", text.replace("\n", "\\n")), true)?;
+                self.c(&format!("string: \"{}\"", text.replace("\n", "\\n")), true)?;
                 writeln!(self.output, "    adrp    {}, string.{}@PAGE", reg, idx)?;
                 writeln!(self.output, "    add     {}, {}, string.{}@PAGEOFF", reg, reg, idx)
             },
@@ -197,14 +188,7 @@ impl<'a, W: Write> Generator<'a, W> {
 
     fn write_binary_expr(&mut self, op: &BinaryOp, lhs: &Expr, rhs: &Expr, current_func: &str, target_reg: &str) -> io::Result<()> {
         self.write_expression(lhs, current_func, "x9")?;
-        let is_rhs_binop = matches!(rhs, Expr::Binary { .. });
-        if is_rhs_binop {
-            writeln!(self.output, "    str     x9, [sp, 16]")?;
-        }
         self.write_expression(rhs, current_func, "x10")?;
-        if is_rhs_binop {
-            writeln!(self.output, "    ldr     x9, [sp, 16]")?;
-        }
 
         self.c(&format!("binop: {} {} {}", lhs, op, rhs), true)?;
 
@@ -246,15 +230,32 @@ impl<'a, W: Write> Generator<'a, W> {
         }
     }
 
-    fn write_funcall_expr(&mut self, name: &str, args: &[Expr], current_func: &str, target_reg: &str) -> io::Result<()> {
-        self.c(&format!("args for funcall {}", name), true)?;
-        for (i, arg) in args.iter().enumerate() {
-            let reg = format!("x{}", i);
-            self.write_expression(arg, current_func, &reg)?;
+    fn write_funcall(&mut self, current_func_name: &str, callee_name: &str, args: &[Expr], target_reg: &str) -> io::Result<()> {
+        match callee_name {
+            "exit" => self.use_exit = true,
+            "puts" => self.use_puts = true,
+            "puti" => self.use_puti = true,
+            _ => {},
         }
 
-        self.c(&format!("call {}", name), true)?;
-        writeln!(self.output, "    bl      _{}", name)?;
+        self.c("save temporary registers", true)?;
+        writeln!(self.output, "    stp     x9, x10, [sp, -16]!")?;
+        writeln!(self.output, "    stp     x11, x12, [sp, -16]!")?;
+
+        if args.len() > 0 {
+            self.c(&format!("load args for {}", callee_name), true)?;
+            for (i, arg) in args.iter().enumerate() {
+                let reg = format!("x{}", i);
+                self.write_expression(arg, current_func_name, &reg)?;
+            }
+        }
+
+        self.c(&format!("call {}", callee_name), true)?;
+        writeln!(self.output, "    bl      _{}", callee_name)?;
+
+        self.c("restore temporary registers", true)?;
+        writeln!(self.output, "    ldp     x11, x12, [sp], 16")?;
+        writeln!(self.output, "    ldp     x9, x10, [sp], 16")?;
 
         if target_reg != "x0" {
             writeln!(self.output, "    mov     {}, x0", target_reg)?;
@@ -264,12 +265,9 @@ impl<'a, W: Write> Generator<'a, W> {
     }
 
     fn write_variable(&mut self, name: &str, current_func: &str, target_reg: &str) -> io::Result<()> {
-        let src_reg = format!("x{}", parser::get_variable_position(self.ast, current_func, name));
-        if src_reg != target_reg {
-            self.c(&format!("variable {}", name), true)?;
-            writeln!(self.output, "    mov     {}, {}", target_reg, src_reg)?;
-        }
-        Ok(())
+        let pos = parser::get_variable_position(self.ast, current_func, name);
+        self.c(&format!("var: {}", name), true)?;
+        writeln!(self.output, "    ldr     {}, [x29, {}]", target_reg, 16 + 8 * pos)
     }
 
     fn write_puts(&mut self) -> io::Result<()> {
@@ -369,11 +367,7 @@ impl<'a, W: Write> Generator<'a, W> {
 
     fn c(&mut self, s: &str, padding: bool) -> io::Result<()> {
         if self.emit_comments {
-            let pad = if padding {
-                "    "
-            } else {
-                ""
-            };
+            let pad = if padding { "    " } else { "" };
             writeln!(self.output, "{}; {}", pad, s)?;
         }
         Ok(())
