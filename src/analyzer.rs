@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::parser::{Ast, Statement, Function, Variable, Expr, Literal};
+use crate::parser::{Ast, BinaryOp, Expr, Function, Literal, Statement, Variable};
 use crate::diag;
 
 pub fn analyze(ast: &Ast) {
@@ -74,8 +74,11 @@ fn typecheck_statement(ast: &Ast, func: &Function, statement: &Statement, vars: 
                 typecheck_expr(ast, expr, vars, builtin_funcs, &ast.functions);
             }
         },
-        Statement::If { condition: _, consequence, otherwise } => {
-            // TODO: check if condition is a boolean
+        Statement::If { condition, consequence, otherwise } => {
+            let condition_type = get_expr_type(ast, condition, vars);
+            if condition_type != "bool" {
+                diag::fatal!("expected a `bool` condition, got `{}`", condition_type);
+            }
 
             for s in consequence {
                 typecheck_statement(ast, func, s, vars, builtin_funcs);
@@ -84,8 +87,13 @@ fn typecheck_statement(ast: &Ast, func: &Function, statement: &Statement, vars: 
                 typecheck_statement(ast, func, s, vars, builtin_funcs);
             }
         },
-        Statement::While { condition: _, block } => {
-            // TODO: check if condition is a boolean
+        Statement::While { condition, block } => {
+            if let Some(expr) = condition {
+                let condition_type = get_expr_type(ast, expr, vars);
+                if condition_type != "bool" {
+                    diag::fatal!("expected a `bool` condition, got `{}`", condition_type);
+                }
+            }
 
             for s in block {
                 typecheck_statement(ast, func, s, vars, builtin_funcs);
@@ -94,17 +102,37 @@ fn typecheck_statement(ast: &Ast, func: &Function, statement: &Statement, vars: 
     }
 }
 
+fn typecheck_binop(ast: &Ast, op: &BinaryOp, lhs: &Expr, rhs: &Expr, vars: &Vec<Variable>) {
+    let lhs_type = get_expr_type(ast, lhs, vars);
+    let rhs_type = get_expr_type(ast, rhs, vars);
+    match op {
+        BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Div => {
+            if lhs_type != "int64" {
+                diag::fatal!("binary operations only supported for type `int64`");
+            }
+            if rhs_type != "int64" {
+                diag::fatal!("binary operations only supported for type `int64`");
+            }
+        },
+        BinaryOp::EQ | BinaryOp::NE | BinaryOp::GT | BinaryOp::LT | BinaryOp::LE | BinaryOp::GE => {
+            if lhs_type != rhs_type {
+                diag::fatal!("operands of different types. lhs: `{}`, rhs: `{}`", lhs_type, rhs_type);
+            }
+            if lhs_type != "int64" && lhs_type != "bool" {
+                diag::fatal!("operands of different types. logical operations can be applied only for `int64` or `bool`");
+            }
+            if rhs_type != "int64" && rhs_type != "bool" {
+                diag::fatal!("operands of different types. logical operations can be applied only for `int64` or `bool`");
+            }
+        }
+    }
+}
+
 fn typecheck_expr(ast: &Ast, expr: &Expr, vars: &Vec<Variable>, builtin_funcs: &HashMap<&str, Function>, user_funcs: &HashMap<String, Function>) {
     match expr {
         Expr::Literal(_) => {}
-        Expr::Binary { op: _, lhs, rhs } => {
-            if &get_expr_type(ast, lhs, vars) != "int64" {
-                diag::fatal!("binary operations only supported for type `int64`");
-            }
-
-            if &get_expr_type(ast, rhs, vars) != "int64" {
-                diag::fatal!("binary operations only supported for type `int64`");
-            }
+        Expr::Binary { op, lhs, rhs } => {
+            typecheck_binop(ast, op, lhs, rhs, vars);
         }
         Expr::Funcall { name, args } => {
             typecheck_funcall(ast, name, args, vars, builtin_funcs, user_funcs);
@@ -173,14 +201,25 @@ fn check_entrypoint_declaration(ast: &Ast) {
     }
 }
 
+fn get_binop_type(op: &BinaryOp) -> String {
+    match op {
+        BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Div => {
+            return String::from("int64");
+        },
+        BinaryOp::EQ | BinaryOp::NE | BinaryOp::GT | BinaryOp::LT | BinaryOp::LE | BinaryOp::GE => {
+            return String::from("bool");
+        }
+    }
+}
+
 fn get_expr_type(ast: &Ast, expr: &Expr, vars: &Vec<Variable>) -> String {
     match expr {
         Expr::Literal(literal) => match literal {
             Literal::Number(_) => return String::from("int64"),
             Literal::String(_) => return String::from("string"),
         },
-        Expr::Binary { op: _, lhs: _, rhs: _ } => {
-            return String::from("int64");
+        Expr::Binary { op, lhs: _, rhs: _ } => {
+            return get_binop_type(op);
         },
         Expr::Funcall { name, args: _ } => {
             for (func_name, func) in ast.functions.clone() {

@@ -158,10 +158,10 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                         body,
                     });
                 }
-                TokenKind::Word => {
+                TokenKind::Word | TokenKind::Exclamation => {
                     let ret_type = self.tokens.next().unwrap();
-                    if ret_type.kind != TokenKind::Word {
-                        diag::fatal!(ret_type.loc, "expected token kind {}, got {}", TokenKind::Word, ret_type.kind);
+                    if !is_type(&ret_type.text) {
+                        diag::fatal!(ret_type.loc, "unknown return type `{}`", ret_type.text);
                     }
 
                     if !is_type(&ret_type.text) {
@@ -396,7 +396,8 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
 
 fn is_type(s: &str) -> bool {
     match s {
-        "int64" | "string" | "void" => return true,
+        // NOTE: ! is a never type
+        "int64" | "string" | "void" | "bool" | "!" => return true,
         _ => return false,
     }
 }
