@@ -68,7 +68,7 @@ pub enum Expr {
 #[derive(Clone)]
 pub enum BinaryOp {
     Add, Sub, Mul, Div,
-    Eq,
+    EQ, NE, GT, LT, GE, LE,
 }
 
 pub struct Parser<Tokens> where Tokens: Iterator<Item = Token> {
@@ -230,7 +230,12 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                 TokenKind::Minus => Some(BinaryOp::Sub),
                 TokenKind::Star => Some(BinaryOp::Mul),
                 TokenKind::Slash => Some(BinaryOp::Div),
-                TokenKind::EqualEqual => Some(BinaryOp::Eq),
+                TokenKind::EqualEqual => Some(BinaryOp::EQ),
+                TokenKind::NotEqual => Some(BinaryOp::NE),
+                TokenKind::Greater => Some(BinaryOp::GT),
+                TokenKind::Less => Some(BinaryOp::LT),
+                TokenKind::GreaterEqual => Some(BinaryOp::GE),
+                TokenKind::LessEqual => Some(BinaryOp::LE),
                 _ => None,
             };
 
@@ -398,9 +403,10 @@ fn is_type(s: &str) -> bool {
 
 fn get_op_precedence(op: &BinaryOp) -> u8 {
     match op {
-        BinaryOp::Eq => 1,
-        BinaryOp::Add | BinaryOp::Sub => 2,
-        BinaryOp::Mul | BinaryOp::Div => 3,
+        BinaryOp::EQ | BinaryOp::NE => 1,
+        BinaryOp::LT | BinaryOp::LE | BinaryOp::GT | BinaryOp::GE => 2,
+        BinaryOp::Add | BinaryOp::Sub => 3,
+        BinaryOp::Mul | BinaryOp::Div => 4,
     }
 }
 
@@ -537,7 +543,12 @@ impl fmt::Display for BinaryOp {
                 BinaryOp::Sub => "-",
                 BinaryOp::Mul => "*",
                 BinaryOp::Div => "/",
-                BinaryOp::Eq => "==",
+                BinaryOp::EQ => "==",
+                BinaryOp::NE => "!=",
+                BinaryOp::GT => "!=",
+                BinaryOp::LT => "!=",
+                BinaryOp::GE => "!=",
+                BinaryOp::LE => "!=",
             }
         )
     }

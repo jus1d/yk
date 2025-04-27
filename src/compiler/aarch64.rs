@@ -213,9 +213,34 @@ impl<'a, W: Write> Generator<'a, W> {
             BinaryOp::Sub => writeln!(self.output, "    sub     {}, x9, x10", target_reg),
             BinaryOp::Mul => writeln!(self.output, "    mul     {}, x9, x10", target_reg),
             BinaryOp::Div => writeln!(self.output, "    sdiv    {}, x9, x10", target_reg),
-            BinaryOp::Eq => {
+            BinaryOp::EQ => {
                 writeln!(self.output, "    cmp     x9, x10")?;
                 writeln!(self.output, "    cset    {}, eq", target_reg)?;
+                Ok(())
+            },
+            BinaryOp::NE => {
+                writeln!(self.output, "    cmp     x9, x10")?;
+                writeln!(self.output, "    cset    {}, ne", target_reg)?;
+                Ok(())
+            },
+            BinaryOp::GT => {
+                writeln!(self.output, "    cmp     x9, x10")?;
+                writeln!(self.output, "    cset    {}, gt", target_reg)?;
+                Ok(())
+            },
+            BinaryOp::LT => {
+                writeln!(self.output, "    cmp     x9, x10")?;
+                writeln!(self.output, "    cset    {}, lt", target_reg)?;
+                Ok(())
+            },
+            BinaryOp::GE => {
+                writeln!(self.output, "    cmp     x9, x10")?;
+                writeln!(self.output, "    cset    {}, ge", target_reg)?;
+                Ok(())
+            },
+            BinaryOp::LE => {
+                writeln!(self.output, "    cmp     x9, x10")?;
+                writeln!(self.output, "    cset    {}, le", target_reg)?;
                 Ok(())
             },
         }

@@ -23,8 +23,14 @@ pub enum TokenKind {
     Star,
     Slash,
     Equals,
+    Exclamation,
 
     EqualEqual,
+    NotEqual,
+    Greater,
+    Less,
+    GreaterEqual,
+    LessEqual,
 }
 
 impl fmt::Display for TokenKind {
@@ -48,6 +54,12 @@ impl fmt::Display for TokenKind {
                 TokenKind::Slash => "`/`",
                 TokenKind::Equals => "`=`",
                 TokenKind::EqualEqual => "`==`",
+                TokenKind::NotEqual => "`!=`",
+                TokenKind::Greater => "`>`",
+                TokenKind::Less => "`<`",
+                TokenKind::GreaterEqual => "`>=`",
+                TokenKind::LessEqual => "`<=`",
+                TokenKind::Exclamation => "`!`",
             }
         )
     }
@@ -208,11 +220,29 @@ impl<Chars: Iterator<Item = char> + Clone> Iterator for Lexer<Chars> {
             '*' => return Some(Token::with_text(TokenKind::Star, &text, loc)),
             // TODO: parse inline comment
             '/' => return Some(Token::with_text(TokenKind::Slash, &text, loc)),
+            '>' => {
+                if self.chars.next_if(|ch| *ch == '=').is_some() {
+                    return Some(Token::with_text(TokenKind::GreaterEqual, ">=", loc));
+                }
+                return Some(Token::with_text(TokenKind::Greater, ">", loc));
+            },
+            '<' => {
+                if self.chars.next_if(|ch| *ch == '=').is_some() {
+                    return Some(Token::with_text(TokenKind::LessEqual, "<=", loc));
+                }
+                return Some(Token::with_text(TokenKind::Less, "<", loc));
+            },
             '=' => {
                 if self.chars.next_if(|ch| *ch == '=').is_some() {
                     return Some(Token::with_text(TokenKind::EqualEqual, "==", loc));
                 }
                 return Some(Token::with_text(TokenKind::Equals, "=", loc));
+            },
+            '!' => {
+                if self.chars.next_if(|ch| *ch == '=').is_some() {
+                    return Some(Token::with_text(TokenKind::NotEqual, "!=", loc));
+                }
+                return Some(Token::with_text(TokenKind::Exclamation, "!", loc));
             },
             _ => diag::fatal!(loc, "unexpected character `{}`", ch),
         }
