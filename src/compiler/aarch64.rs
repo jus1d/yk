@@ -54,7 +54,7 @@ impl<'a, W: Write> Generator<'a, W> {
         let offset = if offset % 2 == 1 { offset + 1 } else { offset };
         let stack_size = 16 + (offset * 8);
 
-        self.c("prologue", false)?;
+        self.c("prologue", true)?;
         writeln!(self.output, "    stp     x29, x30, [sp, -{}]!", stack_size)?;
         writeln!(self.output, "    mov     x29, sp")
     }
@@ -91,22 +91,19 @@ impl<'a, W: Write> Generator<'a, W> {
                 }
                 self.write_func_epilogue(function.params.len())
             }
-            Statement::Funcall { name, args } => {
-                self.write_funcall(function, name, args)
-            },
             Statement::If { condition, consequence, otherwise } => {
                 // TODO: here I'm generating duplicating labels like 1:, 2: for all if blocks, it may shoot into my leg in the future :)
                 // but maybe it's fine, who knows
 
-                self.write_expression(condition, &function.name, "x0")?;
+                self.write_expression(condition, &function.name, "x11")?;
                 self.c(&format!("check if {} != 0", condition), true)?;
-                writeln!(self.output, "    cmp     x0, 0")?;
+                writeln!(self.output, "    cmp     x11, 0")?;
                 writeln!(self.output, "    b.eq    1f")?;
                 self.c("consequence", true)?;
                 for statement in consequence {
                     self.write_statement(function, statement)?;
                 }
-                writeln!(self.output, "    b        2f")?;
+                writeln!(self.output, "    b       2f")?;
                 writeln!(self.output, "1:")?;
                 self.c("otherwise", true)?;
                 for statement in otherwise {
@@ -114,6 +111,25 @@ impl<'a, W: Write> Generator<'a, W> {
                 }
                 writeln!(self.output, "2:")?;
                 Ok(())
+            },
+            Statement::While { condition, block } => {
+                writeln!(self.output, "3:")?;
+                if let Some(expr) = condition {
+                    self.write_expression(expr, &function.name, "x12")?;
+                } else {
+                    writeln!(self.output, "    mov     x12, 1")?;
+                }
+                writeln!(self.output, "    cmp     x12, 0")?;
+                writeln!(self.output, "    b.eq    4f")?;
+                for s in block {
+                    self.write_statement(function, s)?;
+                }
+                writeln!(self.output, "    b       3b")?;
+                writeln!(self.output, "4:")?;
+                Ok(())
+            },
+            Statement::Funcall { name, args } => {
+                self.write_funcall(function, name, args)
             },
         }
     }
@@ -247,12 +263,12 @@ impl<'a, W: Write> Generator<'a, W> {
         writeln!(self.output, "    b.ge    1f")?;
         writeln!(self.output, "    neg     x0, x0")?;
         writeln!(self.output, "    str     x0, [sp, 16]")?;
-        writeln!(self.output, "    mov  x0, 1")?;
-        writeln!(self.output, "    adrp x1, minus_char@PAGE")?;
-        writeln!(self.output, "    add  x1, x1, minus_char@PAGEOFF")?;
-        writeln!(self.output, "    mov  x2, 1")?;
-        writeln!(self.output, "    mov  x16, 4")?;
-        writeln!(self.output, "    svc  0")?;
+        writeln!(self.output, "    mov     x0, 1")?;
+        writeln!(self.output, "    adrp    x1, minus_char@PAGE")?;
+        writeln!(self.output, "    add     x1, x1, minus_char@PAGEOFF")?;
+        writeln!(self.output, "    mov     x2, 1")?;
+        writeln!(self.output, "    mov     x16, 4")?;
+        writeln!(self.output, "    svc     0")?;
         writeln!(self.output, "    ldr     x0, [sp, 16]")?;
         writeln!(self.output, "1:")?;
         writeln!(self.output, "    mov     x9, 0xCCCC")?;

@@ -84,6 +84,13 @@ fn typecheck_statement(ast: &Ast, func: &Function, statement: &Statement, vars: 
                 typecheck_statement(ast, func, s, vars, builtin_funcs);
             }
         },
+        Statement::While { condition: _, block } => {
+            // TODO: check if condition is a boolean
+
+            for s in block {
+                typecheck_statement(ast, func, s, vars, builtin_funcs);
+            }
+        },
     }
 }
 

@@ -35,6 +35,10 @@ pub enum Statement {
         consequence: Vec<Statement>,
         otherwise: Vec<Statement>
     },
+    While {
+        condition: Option<Expr>,
+        block: Vec<Statement>,
+    },
     Ret {
         value: Option<Expr>
     },
@@ -300,8 +304,11 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
             Some(token) => match token.kind {
                 TokenKind::Word => match token.text.as_str() {
                     "ret" => {
-                        let value = self.parse_expr();
+                        if self.tokens.next_if(|t| t.kind == TokenKind::Semicolon).is_some() {
+                            return Statement::Ret { value: None };
+                        }
 
+                        let value = self.parse_expr();
                         if self.tokens.next_if(|t| t.kind == TokenKind::Semicolon).is_none() {
                             diag::fatal!(token.loc, "missing semicolon after return");
                         }
@@ -321,7 +328,22 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
 
                         return Statement::If { condition, consequence, otherwise: Vec::new() }
                     },
+                    "while" => {
+                        if let Some(next) = self.tokens.peek() {
+                            if next.kind == TokenKind::OpenCurly {
+                                let block = self.parse_block();
+
+                                return Statement::While { condition: None, block }
+                            }
+                        }
+
+                        let condition = self.parse_expr();
+                        let block = self.parse_block();
+
+                        return Statement::While { condition: Some(condition), block };
+                    },
                     _ => {
+                        // TODO: check if function name is a keyword
                         let name = token.text.clone();
                         let mut args = Vec::new();
 
@@ -437,12 +459,9 @@ impl fmt::Display for Statement {
                     }
                     write!(f, "{}", arg)?;
                 }
-                write!(f, ");")
+                write!(f, ");")?;
+                Ok(())
             }
-            Statement::Ret { value } => match value {
-                Some(value) => write!(f, "ret {};", value),
-                None => write!(f, "ret;"),
-            },
             Statement::If { condition, consequence, otherwise } => {
                 writeln!(f, "if {} {{", condition)?;
                 for stmt in consequence {
@@ -453,8 +472,26 @@ impl fmt::Display for Statement {
                 for stmt in otherwise {
                     writeln!(f, "    {}", stmt)?;
                 }
-                write!(f, "    }}")
-            }
+                write!(f, "    }}")?;
+                Ok(())
+            },
+            Statement::While { condition, block } => {
+                if let Some(expr) = condition {
+                    writeln!(f, "while {} {{", expr)?;
+                } else {
+                    writeln!(f, "while true {{")?;
+                }
+
+                for stmt in block {
+                    writeln!(f, "    {}", stmt)?;
+                }
+                write!(f, "    }}")?;
+                Ok(())
+            },
+            Statement::Ret { value } => match value {
+                Some(value) => write!(f, "ret {};", value),
+                None => write!(f, "ret;"),
+            },
         }
     }
 }
