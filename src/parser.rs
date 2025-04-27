@@ -357,7 +357,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                         return Statement::While { condition: Some(condition), block };
                     },
                     _ => {
-                        // TODO: check if function name is a keyword
+                        // Function call
                         let name = token.text.clone();
                         let mut args = Vec::new();
 
@@ -421,14 +421,10 @@ fn get_op_precedence(op: &BinaryOp) -> u8 {
     }
 }
 
-pub fn get_variable_position(ast: &Ast, func_name: &str, variable_name: &str) -> usize {
-    if let Some(func) = ast.functions.get(func_name) {
-        if let Some(_) = func.params.iter().find(|param| param.name == variable_name) {
-            let position = func.params.iter().position(|p| p.name == variable_name).unwrap();
-            return position;
-        } else {
-            todo!();
-        }
+pub fn get_variable_position(name: &str, func: &Function) -> usize {
+    if let Some(_) = func.params.iter().find(|param| param.name == name) {
+        let position = func.params.iter().position(|p| p.name == name).unwrap();
+        return position;
     } else {
         todo!();
     }

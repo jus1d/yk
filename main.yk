@@ -2,14 +2,7 @@ fn inc(int64 x) int64 {
     ret x + 1;
 }
 
-fn loop(int64 x) int64 {
-    while inc(x) < 10 {
-        puti(x);
-    }
-    ret x;
-}
-
 fn main() int64 {
-    loop(1);
+    puti(inc(1));
     ret 0;
 }
