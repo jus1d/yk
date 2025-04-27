@@ -7,6 +7,9 @@ macro_rules! usage {
         println!("Usage: {} [OPTIONS] <filename>", $program);
         println!("  OPTIONS:");
         println!("    -o <output>           Specify output path");
+        println!("    --emit-comments       Emit comments to assembly");
+        println!("    --unsafe              Disable analyzing and typechecking");
+        println!("    --opt                 Enable compiler optimizations");
         println!("    --help, -h            Print this help message");
     }};
 
@@ -58,7 +61,7 @@ impl Opts {
                 "--unsafe" => {
                     opts.disable_analyzing = true;
                 },
-                "--opt-level" => {
+                "--opt" => {
                     opts.enable_optimization = true;
                 },
                 "-h" | "--help" => {
