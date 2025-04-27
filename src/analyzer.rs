@@ -115,7 +115,18 @@ fn typecheck_statement(ast: &Ast, func: &Function, statement: &Statement, vars: 
                 name: name.clone(),
                 typ: typ.clone(),
             });
-        }
+        },
+        Statement::Assignment { name, value } => {
+            let value_type = get_expr_type(ast, value, vars);
+            if let Some(variable) = vars.iter().find(|var| var.name == *name) {
+                if variable.typ != value_type {
+                    diag::fatal!("assignment to `{}` expected type `{}`, but got `{}`", name, variable.typ, value_type);
+                }
+            }
+            else {
+                diag::fatal!("variable `{}` not found in this scope", name);
+            }
+        },
     }
 }
 

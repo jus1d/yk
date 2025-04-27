@@ -1,19 +1,8 @@
-fn loop(int64 a, int64 b)! {
-    let counter: int64 = 0;
-    if counter < 10 {
-        puts("alive\n");
-    }
-    puti(a + b);
-    puti(a);
-    puti(b);
-    puti(counter);
-}
-
 fn main() int64 {
-    let x: int64 = 69;
-    puts("x = ");
-    puti(x);
-
-    loop(34, 35);
+    let x: int64 = 0;
+    while x < 10 {
+        puti(x);
+        x = x + 1;
+    }
     ret 0;
 }

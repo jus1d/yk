@@ -50,6 +50,10 @@ pub enum Statement {
         typ: String,
         value: Option<Expr>,
     },
+    Assignment {
+        name: String,
+        value: Expr,
+    },
     Ret {
         value: Option<Expr>
     },
@@ -403,8 +407,16 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                         return Statement::Declaration { name, typ, value: Some(value) };
                     },
                     _ => {
-                        // Function call
                         let name = token.text.clone();
+
+                        if self.tokens.next_if(|token| token.kind == TokenKind::Equals).is_some() {
+                            // Assignment
+                            let value = self.parse_expression();
+                            self.expect(TokenKind::Semicolon);
+                            return Statement::Assignment { name, value }
+                        }
+
+                        // Function call
                         let mut args = Vec::new();
 
                         if self.tokens.next_if(|t| t.kind == TokenKind::OpenParen).is_none() {
@@ -569,6 +581,9 @@ impl fmt::Display for Statement {
                 }
 
                 Ok(())
+            },
+            Statement::Assignment { name, value } => {
+                write!(f, "{} = {}", name, value)
             }
         }
     }

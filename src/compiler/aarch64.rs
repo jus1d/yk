@@ -166,6 +166,12 @@ impl<'a, W: Write> Generator<'a, W> {
 
                 Ok(())
             },
+            Statement::Assignment { name, value } => {
+                self.write_expression(value, current_func, "x8")?;
+                writeln!(self.output, "    str     x8, [x29, {}]", 16 + parser::get_variable_position(name, current_func) * 8)?;
+
+                Ok(())
+            }
         }
     }
 
