@@ -1,4 +1,6 @@
 fn main() int64 {
-    puts("Hello world!\n");
+    while 3 - 2 == 1 {
+        puts("ok\n");
+    }
     ret 0;
 }

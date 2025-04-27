@@ -5,7 +5,7 @@ main.o: main.s
 	as -arch arm64 -o main.o main.s
 
 main.s: main.yk src/*.rs
-	cargo run --release -- --unsafe -o main.s ./main.yk
+	cargo run --release -- --unsafe --emit-comments -o main.s ./main.yk
 
 examples/hello: examples/hello.o
 	ld -o examples/hello examples/hello.o -lSystem -syslibroot `xcrun --show-sdk-path` -e _main -arch arm64

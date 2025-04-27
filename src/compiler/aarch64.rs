@@ -188,7 +188,7 @@ impl<'a, W: Write> Generator<'a, W> {
             Literal::String(text) => {
                 let idx = self.strings.len();
                 self.strings.push(text.clone());
-                self.c(&format!("string \"{}\"", text), true)?;
+                self.c(&format!("string \"{}\"", text.replace("\n", "\\n")), true)?;
                 writeln!(self.output, "    adrp    {}, string.{}@PAGE", reg, idx)?;
                 writeln!(self.output, "    add     {}, {}, string.{}@PAGEOFF", reg, reg, idx)
             },
@@ -197,7 +197,14 @@ impl<'a, W: Write> Generator<'a, W> {
 
     fn write_binary_expr(&mut self, op: &BinaryOp, lhs: &Expr, rhs: &Expr, current_func: &str, target_reg: &str) -> io::Result<()> {
         self.write_expression(lhs, current_func, "x9")?;
+        let is_rhs_binop = matches!(rhs, Expr::Binary { .. });
+        if is_rhs_binop {
+            writeln!(self.output, "    str     x9, [sp, 16]")?;
+        }
         self.write_expression(rhs, current_func, "x10")?;
+        if is_rhs_binop {
+            writeln!(self.output, "    ldr     x9, [sp, 16]")?;
+        }
 
         self.c(&format!("binop: {} {} {}", lhs, op, rhs), true)?;
 
@@ -206,6 +213,11 @@ impl<'a, W: Write> Generator<'a, W> {
             BinaryOp::Sub => writeln!(self.output, "    sub     {}, x9, x10", target_reg),
             BinaryOp::Mul => writeln!(self.output, "    mul     {}, x9, x10", target_reg),
             BinaryOp::Div => writeln!(self.output, "    sdiv    {}, x9, x10", target_reg),
+            BinaryOp::Eq => {
+                writeln!(self.output, "    cmp     x9, x10")?;
+                writeln!(self.output, "    cset    {}, eq", target_reg)?;
+                Ok(())
+            },
         }
     }
 

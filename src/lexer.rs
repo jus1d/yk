@@ -22,6 +22,9 @@ pub enum TokenKind {
     Minus,
     Star,
     Slash,
+    Equals,
+
+    EqualEqual,
 }
 
 impl fmt::Display for TokenKind {
@@ -43,6 +46,8 @@ impl fmt::Display for TokenKind {
                 TokenKind::Minus => "`-`",
                 TokenKind::Star => "`*`",
                 TokenKind::Slash => "`/`",
+                TokenKind::Equals => "`=`",
+                TokenKind::EqualEqual => "`==`",
             }
         )
     }
@@ -56,10 +61,10 @@ pub struct Token {
 }
 
 impl Token {
-    fn with_text(kind: TokenKind, text: String, loc: Loc) -> Self {
+    fn with_text(kind: TokenKind, text: &str, loc: Loc) -> Self {
         Token {
             kind,
-            text,
+            text: text.to_string(),
             number: 0,
             loc,
         }
@@ -167,7 +172,7 @@ impl<Chars: Iterator<Item = char> + Clone> Iterator for Lexer<Chars> {
                             }
                         }
                     },
-                    '"' => return Some(Token::with_text(TokenKind::String, text, loc)),
+                    '"' => return Some(Token::with_text(TokenKind::String, &text, loc)),
                     _ => text.push(ch),
                 }
             }
@@ -187,22 +192,28 @@ impl<Chars: Iterator<Item = char> + Clone> Iterator for Lexer<Chars> {
                 return Some(Token::with_number(TokenKind::Number, number, loc));
             }
 
-            return Some(Token::with_text(TokenKind::Word, text, loc));
+            return Some(Token::with_text(TokenKind::Word, &text, loc));
         }
 
         match ch {
-            '(' => return Some(Token::with_text(TokenKind::OpenParen, text, loc)),
-            ')' => return Some(Token::with_text(TokenKind::CloseParen, text, loc)),
-            '{' => return Some(Token::with_text(TokenKind::OpenCurly, text, loc)),
-            '}' => return Some(Token::with_text(TokenKind::CloseCurly, text, loc)),
-            ';' => return Some(Token::with_text(TokenKind::Semicolon, text, loc)),
-            ',' => return Some(Token::with_text(TokenKind::Comma, text, loc)),
-            '+' => return Some(Token::with_text(TokenKind::Plus, text, loc)),
+            '(' => return Some(Token::with_text(TokenKind::OpenParen, &text, loc)),
+            ')' => return Some(Token::with_text(TokenKind::CloseParen, &text, loc)),
+            '{' => return Some(Token::with_text(TokenKind::OpenCurly, &text, loc)),
+            '}' => return Some(Token::with_text(TokenKind::CloseCurly, &text, loc)),
+            ';' => return Some(Token::with_text(TokenKind::Semicolon, &text, loc)),
+            ',' => return Some(Token::with_text(TokenKind::Comma, &text, loc)),
+            '+' => return Some(Token::with_text(TokenKind::Plus, &text, loc)),
             // TODO: parse negative integer
-            '-' => return Some(Token::with_text(TokenKind::Minus, text, loc)),
-            '*' => return Some(Token::with_text(TokenKind::Star, text, loc)),
+            '-' => return Some(Token::with_text(TokenKind::Minus, &text, loc)),
+            '*' => return Some(Token::with_text(TokenKind::Star, &text, loc)),
             // TODO: parse inline comment
-            '/' => return Some(Token::with_text(TokenKind::Slash, text, loc)),
+            '/' => return Some(Token::with_text(TokenKind::Slash, &text, loc)),
+            '=' => {
+                if self.chars.next_if(|ch| *ch == '=').is_some() {
+                    return Some(Token::with_text(TokenKind::EqualEqual, "==", loc));
+                }
+                return Some(Token::with_text(TokenKind::Equals, "=", loc));
+            },
             _ => diag::fatal!(loc, "unexpected character `{}`", ch),
         }
     }
