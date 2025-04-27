@@ -1,9 +1,13 @@
+fn putsln(string s) {
+    puts(s);
+    puts("\n");
+}
+
 fn main() int64 {
-    let x: int64 = 0-5;
-    while x <= 5 {
-        puts("x = ");
-        puti(x);
-        x = x + 1;
-    }
+    let x: int64 = 34 + 35;
+    x = 2 + 1;
+
+    puti(x);
+    putsln("ok");
     ret 0;
 }

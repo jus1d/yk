@@ -1,3 +1,4 @@
+pub mod optimizer;
 pub mod compiler;
 pub mod analyzer;
 pub mod parser;
@@ -22,9 +23,13 @@ fn main() {
     let lexer = lexer::Lexer::new(source.chars(), &opts.input_path);
     let mut parser = parser::Parser::from_iter(lexer);
 
-    let ast = parser.parse_ast();
+    let mut ast = parser.parse_ast();
     if !opts.disable_analyzing {
         analyzer::analyze(&ast);
+    }
+
+    if opts.enable_optimization {
+        optimizer::precompute_expressions(&mut ast);
     }
 
     if cfg![target_arch = "aarch64"] {

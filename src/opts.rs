@@ -22,6 +22,7 @@ pub struct Opts {
     pub output_path: String,
     pub disable_analyzing: bool,
     pub emit_comments: bool,
+    pub enable_optimization: bool,
 }
 
 impl Opts {
@@ -33,6 +34,7 @@ impl Opts {
             output_path: String::new(),
             disable_analyzing: false,
             emit_comments: false,
+            enable_optimization: false,
         };
         opts.program_name = args.next().unwrap();
 
@@ -55,6 +57,9 @@ impl Opts {
                 },
                 "--unsafe" => {
                     opts.disable_analyzing = true;
+                },
+                "--opt-level" => {
+                    opts.enable_optimization = true;
                 },
                 "-h" | "--help" => {
                     usage!(opts.program_name);
