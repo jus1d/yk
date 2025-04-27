@@ -1,7 +1,10 @@
-fn main() int64 {
-    while 2 + 2 == 4 {
-        puts("ok\n");
-        ret 0;
+fn loop(int64 x)! {
+    while x > 0 {
+        puti(x);
     }
+}
+
+fn main() int64 {
+    loop(69);
     ret 0;
 }

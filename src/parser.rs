@@ -5,6 +5,12 @@ use std::collections::HashMap;
 use std::fmt;
 use std::iter::Peekable;
 
+pub const KEYWORDS: &[&'static str] = &[
+    "fn", "ret",
+    "if", "else", "while",
+    "true", "false",
+];
+
 #[derive(Clone)]
 pub struct Ast {
     pub functions: HashMap<String, Function>
@@ -130,6 +136,10 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
         let name = self.tokens.next().unwrap();
         if name.kind != TokenKind::Word {
             diag::fatal!(name.loc, "unexpected token. expected `word`, got {}", name.kind);
+        }
+
+        if KEYWORDS.contains(&name.text.as_str()) {
+            diag::fatal!(name.loc, "function name collides with reserved keyword `{}`", name.text);
         }
 
         self.expect(TokenKind::OpenParen);
