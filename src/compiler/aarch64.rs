@@ -332,7 +332,7 @@ impl<'a, W: Write> Generator<'a, W> {
         writeln!(self.output, "    b.ne    2f")?;
         writeln!(self.output, "    mov     w0, 48")?;
         writeln!(self.output, "    strb    w0, [x2], -1")?;
-        writeln!(self.output, "    b       2f")?;
+        writeln!(self.output, "    b       3f")?;
         writeln!(self.output, "2:")?;
         writeln!(self.output, "    umulh   x11, x5, x9")?;
         writeln!(self.output, "    lsr     x11, x11, 3")?;
