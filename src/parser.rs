@@ -371,7 +371,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                                 if token.kind == TokenKind::Word {
                                     token.text
                                 } else {
-                                    diag::fatal!("expected identifier, got `{}`", token.text);
+                                    diag::fatal!(token.loc, "expected identifier, got `{}`", token.text);
                                 }
                             },
                             None => {
@@ -386,7 +386,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                                 if token.kind == TokenKind::Word && is_type(&token.text) {
                                     token.text
                                 } else {
-                                    diag::fatal!("expected type, got `{}`", token.text);
+                                    diag::fatal!(token.loc, "expected type, got `{}`", token.text);
                                 }
                             },
                             None => {
@@ -622,10 +622,7 @@ impl fmt::Display for Expr {
 
 impl fmt::Display for BinaryOp {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
+        write!(f, "{}", match self {
                 BinaryOp::Add => "+",
                 BinaryOp::Sub => "-",
                 BinaryOp::Mul => "*",

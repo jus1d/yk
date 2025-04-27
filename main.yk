@@ -1,3 +1,5 @@
+fn sum() {}
+
 fn putsln(string s) {
     puts(s);
     puts("\n");

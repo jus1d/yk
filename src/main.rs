@@ -30,6 +30,7 @@ fn main() {
 
     if opts.enable_optimization {
         optimizer::precompute_expressions(&mut ast);
+        optimizer::eliminate_deadcode(&mut ast);
     }
 
     if cfg![target_arch = "aarch64"] {
