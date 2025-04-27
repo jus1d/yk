@@ -1,23 +1,4 @@
 fn main() int64 {
-    if 0 {
-        puts("unreachable");
-    }
-
-    if 1 {
-        puts("ok");
-    }
-
-    if 1 {
-        puts("ok");
-    } else {
-        puts("unreachable");
-    }
-
-    if 0 {
-        puts("unreachable");
-    } else {
-        puts("ok");
-    }
-
+    puts("hello");
     ret 0;
 }

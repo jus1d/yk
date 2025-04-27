@@ -188,6 +188,9 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
         }
 
         let mut statements = Vec::new();
+        if self.tokens.next_if(|token| token.kind == TokenKind::CloseCurly).is_some() {
+            return statements;
+        }
 
         loop {
             statements.push(self.parse_stmt());
