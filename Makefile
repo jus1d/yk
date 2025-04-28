@@ -5,7 +5,7 @@ main.o: main.s
 	as -arch arm64 -o main.o main.s
 
 main.s: main.yk ykc
-	./ykc --emit-comments --opt --unsafe -o main.s ./main.yk
+	./ykc --emit-comments --opt -o main.s ./main.yk
 
 ykc: src/*.rs
 	cargo build --release

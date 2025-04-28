@@ -185,12 +185,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                         diag::fatal!(ret_type.loc, "unknown return type `{}`", ret_type.text);
                     }
 
-                    if !is_type(&ret_type.text) {
-                        diag::fatal!(ret_type.loc, "unknown type `{}`", ret_type.text);
-                    }
-
                     let body = self.parse_block();
-
                     return Some(Function {
                         name: name.text,
                         ret_type: ret_type.text,
