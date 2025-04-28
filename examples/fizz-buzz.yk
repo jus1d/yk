@@ -7,13 +7,13 @@ fn main() int64 {
 
         if counter % 3 == 0 {
             if counter % 5 == 0 {
-                putsln("fizz buzz");
+                puts("fizz buzz\n");
             } else {
-                putsln("fizz");
+                puts("fizz\n");
             }
         } else {
             if counter % 5 == 0 {
-                putsln("buzz");
+                puts("buzz\n");
             } else {
                 puti(counter);
             }

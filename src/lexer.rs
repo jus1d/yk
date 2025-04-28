@@ -33,6 +33,11 @@ pub enum TokenKind {
     Less,
     GreaterEqual,
     LessEqual,
+
+    Ampersand,
+    DoubleAmpersand,
+    Pipe,
+    DoublePipe,
 }
 
 impl fmt::Display for TokenKind {
@@ -64,6 +69,10 @@ impl fmt::Display for TokenKind {
                 TokenKind::LessEqual => "`<=`",
                 TokenKind::Exclamation => "`!`",
                 TokenKind::Percent => "`%`",
+                TokenKind::Pipe => "`|`",
+                TokenKind::DoublePipe => "`||`",
+                TokenKind::Ampersand => "`&`",
+                TokenKind::DoubleAmpersand => "`&&`",
             }
         )
     }
@@ -226,6 +235,18 @@ impl<Chars: Iterator<Item = char> + Clone> Iterator for Lexer<Chars> {
             // TODO: parse inline comment
             '/' => return Some(Token::with_text(TokenKind::Slash, &text, loc)),
             '%' => return Some(Token::with_text(TokenKind::Percent, &text, loc)),
+            '|' => {
+                if self.chars.next_if(|ch| *ch == '|').is_some() {
+                    return Some(Token::with_text(TokenKind::DoublePipe, "||", loc));
+                }
+                return Some(Token::with_text(TokenKind::Pipe, "|", loc));
+            },
+            '&' => {
+                if self.chars.next_if(|ch| *ch == '&').is_some() {
+                    return Some(Token::with_text(TokenKind::DoubleAmpersand, "&&", loc));
+                }
+                return Some(Token::with_text(TokenKind::Ampersand, "&", loc));
+            },
             '>' => {
                 if self.chars.next_if(|ch| *ch == '=').is_some() {
                     return Some(Token::with_text(TokenKind::GreaterEqual, ">=", loc));

@@ -200,51 +200,86 @@ impl<'a, W: Write> Generator<'a, W> {
 
     fn write_binop(&mut self, op: &BinaryOp, lhs: &Expr, rhs: &Expr, current_func: &Function, target_reg: &str) -> io::Result<()> {
         self.write_expression(lhs, current_func, "x9")?;
-        self.write_expression(rhs, current_func, "x10")?;
-
-        self.c(&format!("binop: {} {} {}", lhs, op, rhs), true)?;
 
         match op {
-            BinaryOp::Add => writeln!(self.out, "    add     {}, x9, x10", target_reg),
-            BinaryOp::Sub => writeln!(self.out, "    sub     {}, x9, x10", target_reg),
-            BinaryOp::Mul => writeln!(self.out, "    mul     {}, x9, x10", target_reg),
-            BinaryOp::Div => writeln!(self.out, "    sdiv    {}, x9, x10", target_reg),
-            BinaryOp::Mod => {
-                writeln!(self.out, "    sdiv    x11, x9, x10")?;
-                writeln!(self.out, "    msub    x11, x11, x10, x9")?;
-                writeln!(self.out, "    mov     {}, x11", target_reg)?;
+            BinaryOp::LogicalOr => {
+                let end_label = self.label();
+                let true_label = self.label();
+
+                writeln!(self.out, "    cmp     x9, 0")?;
+                writeln!(self.out, "    b.ne    {}", true_label)?;
+
+                self.write_expression(rhs, current_func, "x10")?;
+                writeln!(self.out, "    cmp     x10, 0")?;
+                writeln!(self.out, "    b.ne    {}", true_label)?;
+
+                writeln!(self.out, "    mov     {}, 0", target_reg)?;
+                writeln!(self.out, "    b       {}", end_label)?;
+                writeln!(self.out, "{}:", true_label)?;
+                writeln!(self.out, "    mov     {}, 1", target_reg)?;
+                writeln!(self.out, "{}:", end_label)?;
                 Ok(())
             },
-            BinaryOp::EQ => {
-                writeln!(self.out, "    cmp     x9, x10")?;
-                writeln!(self.out, "    cset    {}, eq", target_reg)?;
+            BinaryOp::LogicalAnd => {
+                let end_label = self.label();
+                let false_label = self.label();
+
+                writeln!(self.out, "    cmp     x9, 0")?;
+                writeln!(self.out, "    b.eq    {}", false_label)?;
+
+                self.write_expression(rhs, current_func, "x10")?;
+                writeln!(self.out, "    cmp     x10, 0")?;
+                writeln!(self.out, "    b.eq    {}", false_label)?;
+
+                writeln!(self.out, "    mov     {}, 1", target_reg)?;
+                writeln!(self.out, "    b       {}", end_label)?;
+                writeln!(self.out, "{}:", false_label)?;
+                writeln!(self.out, "    mov     {}, 0", target_reg)?;
+                writeln!(self.out, "{}:", end_label)?;
                 Ok(())
             },
-            BinaryOp::NE => {
-                writeln!(self.out, "    cmp     x9, x10")?;
-                writeln!(self.out, "    cset    {}, ne", target_reg)?;
-                Ok(())
-            },
-            BinaryOp::GT => {
-                writeln!(self.out, "    cmp     x9, x10")?;
-                writeln!(self.out, "    cset    {}, gt", target_reg)?;
-                Ok(())
-            },
-            BinaryOp::LT => {
-                writeln!(self.out, "    cmp     x9, x10")?;
-                writeln!(self.out, "    cset    {}, lt", target_reg)?;
-                Ok(())
-            },
-            BinaryOp::GE => {
-                writeln!(self.out, "    cmp     x9, x10")?;
-                writeln!(self.out, "    cset    {}, ge", target_reg)?;
-                Ok(())
-            },
-            BinaryOp::LE => {
-                writeln!(self.out, "    cmp     x9, x10")?;
-                writeln!(self.out, "    cset    {}, le", target_reg)?;
-                Ok(())
-            },
+            _ => {
+                self.write_expression(rhs, current_func, "x10")?;
+                self.c(&format!("binop: {} {} {}", lhs, op, rhs), true)?;
+
+                match op {
+                    BinaryOp::Add => writeln!(self.out, "    add     {}, x9, x10", target_reg),
+                    BinaryOp::Sub => writeln!(self.out, "    sub     {}, x9, x10", target_reg),
+                    BinaryOp::Mul => writeln!(self.out, "    mul     {}, x9, x10", target_reg),
+                    BinaryOp::Div => writeln!(self.out, "    sdiv    {}, x9, x10", target_reg),
+                    BinaryOp::Mod => {
+                        writeln!(self.out, "    sdiv    x11, x9, x10")?;
+                        writeln!(self.out, "    msub    {}, x11, x10, x9", target_reg)?;
+                        Ok(())
+                    },
+                    BinaryOp::EQ => {
+                        writeln!(self.out, "    cmp     x9, x10")?;
+                        writeln!(self.out, "    cset    {}, eq", target_reg)
+                    },
+                    BinaryOp::NE => {
+                        writeln!(self.out, "    cmp     x9, x10")?;
+                        writeln!(self.out, "    cset    {}, ne", target_reg)
+                    },
+                    BinaryOp::GT => {
+                        writeln!(self.out, "    cmp     x9, x10")?;
+                        writeln!(self.out, "    cset    {}, gt", target_reg)
+                    },
+                    BinaryOp::LT => {
+                        writeln!(self.out, "    cmp     x9, x10")?;
+                        writeln!(self.out, "    cset    {}, lt", target_reg)
+                    },
+                    BinaryOp::GE => {
+                        writeln!(self.out, "    cmp     x9, x10")?;
+                        writeln!(self.out, "    cset    {}, ge", target_reg)
+                    },
+                    BinaryOp::LE => {
+                        writeln!(self.out, "    cmp     x9, x10")?;
+                        writeln!(self.out, "    cset    {}, le", target_reg)
+                    },
+                    BinaryOp::LogicalOr => unreachable!(),
+                    BinaryOp::LogicalAnd => unreachable!(),
+                }
+            }
         }
     }
 

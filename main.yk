@@ -5,17 +5,17 @@ fn main() int64 {
     while counter < target {
         counter = counter + 1;
 
-        if counter % 3 == 0 {
-            if counter % 5 == 0 {
-                putsln("fizz buzz");
-            } else {
-                putsln("fizz");
-            }
+        if counter % 3 == 0 && counter % 5 == 0 {
+            puts("fizz bizz\n");
         } else {
-            if counter % 5 == 0 {
-                putsln("buzz");
+            if counter % 3 == 0 {
+                puts("fizz\n");
             } else {
-                puti(counter);
+                if counter % 5 == 0 {
+                    puts("buzz\n");
+                } else {
+                    puti(counter);
+                }
             }
         }
     }

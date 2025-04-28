@@ -152,7 +152,8 @@ fn typecheck_binop(ast: &Ast, op: &BinaryOp, lhs: &Expr, rhs: &Expr, vars: &Vec<
             if rhs_type != "int64" && rhs_type != "bool" {
                 diag::fatal!("operands of different types. logical operations can be applied only for `int64` or `bool`");
             }
-        }
+        },
+        _ => todo!(),
     }
 }
 
@@ -236,7 +237,8 @@ fn get_binop_type(op: &BinaryOp) -> String {
         },
         BinaryOp::EQ | BinaryOp::NE | BinaryOp::GT | BinaryOp::LT | BinaryOp::LE | BinaryOp::GE => {
             return String::from("bool");
-        }
+        },
+        _ => todo!(),
     }
 }
 
