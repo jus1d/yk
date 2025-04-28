@@ -1,0 +1,23 @@
+fn main() int64 {
+    let counter: int64 = 0;
+    let target: int64 = 69;
+
+    while counter < target {
+        counter = counter + 1;
+
+        if counter % 3 == 0 {
+            if counter % 5 == 0 {
+                putsln("fizz buzz");
+            } else {
+                putsln("fizz");
+            }
+        } else {
+            if counter % 5 == 0 {
+                putsln("buzz");
+            } else {
+                puti(counter);
+            }
+        }
+    }
+    ret 0;
+}
