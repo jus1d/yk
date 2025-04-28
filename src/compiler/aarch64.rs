@@ -59,22 +59,26 @@ impl<'a, W: Write> Generator<'a, W> {
     }
 
     fn write_func(&mut self, func: &Function) -> io::Result<()> {
-        self.c(&format!("function: {}", func.name), false)?;
         writeln!(self.out, "_{}:", func.name)?;
 
         let params_count = func.params.len();
         let declarations_count = func.body.iter().filter(|s| matches!(s, Statement::Declaration { .. })).count();
         self.write_func_prologue(params_count + declarations_count)?;
 
-        self.c("push locals onto the stack", true)?;
-        for i in 0..params_count {
-            writeln!(self.out, "    str     x{}, [x29, {}]", i, 16 + 8 * i)?;
+        if params_count > 0 {
+            self.c("push arguments onto the stack", true)?;
+            for i in 0..params_count {
+                writeln!(self.out, "    str     x{}, [x29, {}]", i, 16 + 8 * i)?;
+            }
         }
 
-        self.c("body", true)?;
-        for statement in &func.body {
-            self.write_statement(statement, func, declarations_count)?;
+        if func.body.len() > 0 {
+            self.c(&format!("body: {}", func.name), true)?;
+            for statement in &func.body {
+                self.write_statement(statement, func, declarations_count)?;
+            }
         }
+
 
         if !func.body.iter().any(|s| matches!(s, Statement::Ret { .. })) {
             self.write_func_epilogue(params_count + declarations_count)?;
@@ -118,26 +122,30 @@ impl<'a, W: Write> Generator<'a, W> {
                 writeln!(self.out, "    cmp     x11, 0")?;
                 writeln!(self.out, "    b.eq    {}", else_label)?;
 
-                self.c("consequence", true)?;
-                for statement in consequence {
-                    self.write_statement(statement, current_func, declarations_count)?;
+                if consequence.len() > 0 {
+                    self.c("consequence", true)?;
+                    for statement in consequence {
+                        self.write_statement(statement, current_func, declarations_count)?;
+                    }
                 }
                 writeln!(self.out, "    b       {}", end_label)?;
 
-                writeln!(self.out, "{}:", else_label)?;
-                self.c("otherwise", true)?;
-                for statement in otherwise {
-                    self.write_statement(statement, current_func, declarations_count)?;
+                writeln!(self.out, "{}:    ; else-label", else_label)?;
+                if otherwise.len() > 0 {
+                    self.c("otherwise", true)?;
+                    for statement in otherwise {
+                        self.write_statement(statement, current_func, declarations_count)?;
+                    }
                 }
 
-                writeln!(self.out, "{}:", end_label)?;
+                writeln!(self.out, "{}:    ; end-if", end_label)?;
                 Ok(())
             },
             Statement::While { condition, block } => {
                 let start_label = self.label();
                 let end_label = self.label();
 
-                writeln!(self.out, "{}:", start_label)?;
+                writeln!(self.out, "{}:    ; while", start_label)?;
                 if let Some(expr) = condition {
                     self.write_expression(expr, current_func, "x12")?;
                     writeln!(self.out, "    cmp     x12, 0")?;
@@ -152,7 +160,7 @@ impl<'a, W: Write> Generator<'a, W> {
                     self.write_statement(s, current_func, declarations_count)?;
                 }
                 writeln!(self.out, "    b       {}", start_label)?;
-                writeln!(self.out, "{}:", end_label)?;
+                writeln!(self.out, "{}:    ; while-end", end_label)?;
                 Ok(())
             },
             Statement::Funcall { name, args } => {
@@ -161,12 +169,15 @@ impl<'a, W: Write> Generator<'a, W> {
             Statement::Declaration { name, typ: _, value } => {
                 if let Some(expr) = value {
                     self.write_expression(expr, current_func, "x8")?;
+                    self.c(&format!("declaration: {} = {}", name, expr), true)?;
                     writeln!(self.out, "    str     x8, [x29, {}]", 16 + parser::get_variable_position(name, current_func) * 8)?;
                 }
+                // Nothing to do, if value is empty. Variable will just allocated on the stack.
                 Ok(())
             },
             Statement::Assignment { name, value } => {
                 self.write_expression(value, current_func, "x8")?;
+                self.c(&format!("assignment: {} = {}", name, value), true)?;
                 writeln!(self.out, "    str     x8, [x29, {}]", 16 + parser::get_variable_position(name, current_func) * 8)?;
                 Ok(())
             }
@@ -211,6 +222,8 @@ impl<'a, W: Write> Generator<'a, W> {
                 let end_label = self.label();
                 let true_label = self.label();
 
+                self.c(&format!("binop: {} {} {}", lhs, op, rhs), true)?;
+
                 writeln!(self.out, "    cmp     x9, 0")?;
                 writeln!(self.out, "    b.ne    {}", true_label)?;
 
@@ -228,6 +241,8 @@ impl<'a, W: Write> Generator<'a, W> {
             BinaryOp::LogicalAnd => {
                 let end_label = self.label();
                 let false_label = self.label();
+
+                self.c(&format!("binop: {} {} {}", lhs, op, rhs), true)?;
 
                 writeln!(self.out, "    cmp     x9, 0")?;
                 writeln!(self.out, "    b.eq    {}", false_label)?;
@@ -296,7 +311,7 @@ impl<'a, W: Write> Generator<'a, W> {
             _ => {},
         }
 
-        self.c("save temporary registers", true)?;
+        self.c("save temp registers", true)?;
         writeln!(self.out, "    stp     x9, x10, [sp, -16]!")?;
         writeln!(self.out, "    stp     x11, x12, [sp, -16]!")?;
 
@@ -308,10 +323,10 @@ impl<'a, W: Write> Generator<'a, W> {
             }
         }
 
-        self.c(&format!("call {}", name), true)?;
+        self.c(&format!("call: {}", name), true)?;
         writeln!(self.out, "    bl      _{}", name)?;
 
-        self.c("restore temporary registers", true)?;
+        self.c("restore temp registers", true)?;
         writeln!(self.out, "    ldp     x11, x12, [sp], 16")?;
         writeln!(self.out, "    ldp     x9, x10, [sp], 16")?;
 
