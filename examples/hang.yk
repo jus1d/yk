@@ -1,0 +1,15 @@
+fn hang() bool {
+    while {}
+    ret true;
+}
+
+fn zero() int64 {
+    ret false;
+}
+
+fn main() int64 {
+    if zero() && hang() {
+        ret 69;
+    }
+    ret 0;
+}
