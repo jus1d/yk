@@ -82,7 +82,7 @@ pub enum Expr {
 
 #[derive(Clone)]
 pub enum BinaryOp {
-    Add, Sub, Mul, Div,
+    Add, Sub, Mul, Div, Mod,
     EQ, NE, GT, LT, GE, LE,
 }
 
@@ -255,6 +255,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                 TokenKind::Less => Some(BinaryOp::LT),
                 TokenKind::GreaterEqual => Some(BinaryOp::GE),
                 TokenKind::LessEqual => Some(BinaryOp::LE),
+                TokenKind::Percent => Some(BinaryOp::Mod),
                 _ => None,
             };
 
@@ -475,7 +476,7 @@ fn get_op_precedence(op: &BinaryOp) -> u8 {
         BinaryOp::EQ | BinaryOp::NE => 1,
         BinaryOp::LT | BinaryOp::LE | BinaryOp::GT | BinaryOp::GE => 2,
         BinaryOp::Add | BinaryOp::Sub => 3,
-        BinaryOp::Mul | BinaryOp::Div => 4,
+        BinaryOp::Mul | BinaryOp::Div | BinaryOp::Mod => 4,
     }
 }
 
@@ -627,12 +628,13 @@ impl fmt::Display for BinaryOp {
                 BinaryOp::Sub => "-",
                 BinaryOp::Mul => "*",
                 BinaryOp::Div => "/",
+                BinaryOp::Mod => "%",
                 BinaryOp::EQ => "==",
                 BinaryOp::NE => "!=",
-                BinaryOp::GT => "!=",
-                BinaryOp::LT => "!=",
-                BinaryOp::GE => "!=",
-                BinaryOp::LE => "!=",
+                BinaryOp::GT => ">",
+                BinaryOp::LT => "<",
+                BinaryOp::GE => ">=",
+                BinaryOp::LE => "<=",
             }
         )
     }

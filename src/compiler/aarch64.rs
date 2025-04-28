@@ -209,6 +209,12 @@ impl<'a, W: Write> Generator<'a, W> {
             BinaryOp::Sub => writeln!(self.out, "    sub     {}, x9, x10", target_reg),
             BinaryOp::Mul => writeln!(self.out, "    mul     {}, x9, x10", target_reg),
             BinaryOp::Div => writeln!(self.out, "    sdiv    {}, x9, x10", target_reg),
+            BinaryOp::Mod => {
+                writeln!(self.out, "    sdiv    x11, x9, x10")?;
+                writeln!(self.out, "    msub    x11, x11, x10, x9")?;
+                writeln!(self.out, "    mov     {}, x11", target_reg)?;
+                Ok(())
+            },
             BinaryOp::EQ => {
                 writeln!(self.out, "    cmp     x9, x10")?;
                 writeln!(self.out, "    cset    {}, eq", target_reg)?;

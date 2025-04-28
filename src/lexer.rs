@@ -25,6 +25,7 @@ pub enum TokenKind {
     Slash,
     Equals,
     Exclamation,
+    Percent,
 
     EqualEqual,
     NotEqual,
@@ -62,6 +63,7 @@ impl fmt::Display for TokenKind {
                 TokenKind::GreaterEqual => "`>=`",
                 TokenKind::LessEqual => "`<=`",
                 TokenKind::Exclamation => "`!`",
+                TokenKind::Percent => "`%`",
             }
         )
     }
@@ -223,6 +225,7 @@ impl<Chars: Iterator<Item = char> + Clone> Iterator for Lexer<Chars> {
             '*' => return Some(Token::with_text(TokenKind::Star, &text, loc)),
             // TODO: parse inline comment
             '/' => return Some(Token::with_text(TokenKind::Slash, &text, loc)),
+            '%' => return Some(Token::with_text(TokenKind::Percent, &text, loc)),
             '>' => {
                 if self.chars.next_if(|ch| *ch == '=').is_some() {
                     return Some(Token::with_text(TokenKind::GreaterEqual, ">=", loc));

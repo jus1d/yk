@@ -134,7 +134,7 @@ fn typecheck_binop(ast: &Ast, op: &BinaryOp, lhs: &Expr, rhs: &Expr, vars: &Vec<
     let lhs_type = get_expr_type(ast, lhs, vars);
     let rhs_type = get_expr_type(ast, rhs, vars);
     match op {
-        BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Div => {
+        BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Div | BinaryOp::Mod => {
             if lhs_type != "int64" {
                 diag::fatal!("binary operations only supported for type `int64`");
             }
@@ -231,7 +231,7 @@ fn check_entrypoint_declaration(ast: &Ast) {
 
 fn get_binop_type(op: &BinaryOp) -> String {
     match op {
-        BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Div => {
+        BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Div | BinaryOp::Mod => {
             return String::from("int64");
         },
         BinaryOp::EQ | BinaryOp::NE | BinaryOp::GT | BinaryOp::LT | BinaryOp::LE | BinaryOp::GE => {
