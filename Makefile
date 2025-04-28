@@ -4,17 +4,12 @@ main: main.o
 main.o: main.s
 	as -arch arm64 -o main.o main.s
 
-main.s: main.yk src/*.rs
-	cargo run --release -- --emit-comments --opt --unsafe -o main.s ./main.yk
+main.s: main.yk ykc
+	./ykc --emit-comments --opt --unsafe -o main.s ./main.yk
 
-examples/hello: examples/hello.o
-	ld -o examples/hello examples/hello.o -lSystem -syslibroot `xcrun --show-sdk-path` -e _main -arch arm64
-
-examples/hello.o: examples/hello.s
-	as -arch arm64 -o examples/hello.o examples/hello.s
-
-examples/hello.s: examples/hello.yk
-	cargo run --release -- --emit-comments -o examples/hello.s examples/hello.yk
+ykc: src/*.rs
+	cargo build --release
+	cp ./target/release/ykc ykc
 
 all: examples/hello main
 

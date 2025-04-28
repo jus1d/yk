@@ -130,7 +130,7 @@ impl<'a, W: Write> Generator<'a, W> {
                 }
                 writeln!(self.out, "    b       {}", end_label)?;
 
-                writeln!(self.out, "{}:    ; else-label", else_label)?;
+                writeln!(self.out, "{}:", else_label)?;
                 if otherwise.len() > 0 {
                     self.c("otherwise", true)?;
                     for statement in otherwise {
@@ -138,14 +138,14 @@ impl<'a, W: Write> Generator<'a, W> {
                     }
                 }
 
-                writeln!(self.out, "{}:    ; end-if", end_label)?;
+                writeln!(self.out, "{}:", end_label)?;
                 Ok(())
             },
             Statement::While { condition, block } => {
                 let start_label = self.label();
                 let end_label = self.label();
 
-                writeln!(self.out, "{}:    ; while", start_label)?;
+                writeln!(self.out, "{}:", start_label)?;
                 if let Some(expr) = condition {
                     self.write_expression(expr, current_func, "x12")?;
                     writeln!(self.out, "    cmp     x12, 0")?;
@@ -160,7 +160,7 @@ impl<'a, W: Write> Generator<'a, W> {
                     self.write_statement(s, current_func, declarations_count)?;
                 }
                 writeln!(self.out, "    b       {}", start_label)?;
-                writeln!(self.out, "{}:    ; while-end", end_label)?;
+                writeln!(self.out, "{}:", end_label)?;
                 Ok(())
             },
             Statement::Funcall { name, args } => {
