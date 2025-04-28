@@ -488,21 +488,21 @@ fn get_op_precedence(op: &BinaryOp) -> u8 {
 }
 
 pub fn get_variable_position(name: &str, func: &Function) -> usize {
-    if let Some(_) = func.params.iter().find(|param| param.name == name) {
-        let position = func.params.iter().position(|p| p.name == name).unwrap();
-        return position;
-    } else {
-        let mut position = func.params.len();
-        for statement in &func.body {
-            if let Statement::Declaration { name: declared, .. } = statement {
-                position += 1;
-                if name == declared {
-                    return position;
+    match func.params.iter().position(|p| p.name == name) {
+        Some(pos) => return pos,
+        None => {
+            let mut pos = func.params.len();
+            for statement in &func.body {
+                if let Statement::Declaration { name: declared, .. } = statement {
+                    pos += 1;
+                    if name == declared {
+                        return pos;
+                    }
                 }
             }
-        }
 
-        todo!();
+            diag::fatal!("variable `{}` not found in current scope", name);
+        }
     }
 }
 
