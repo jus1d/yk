@@ -289,20 +289,9 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
             match token.kind {
                 TokenKind::Number => return Expr::Literal(Literal::Number(token.number)),
                 TokenKind::String => return Expr::Literal(Literal::String(token.text)),
-                // TODO: refactor this peace of code
                 TokenKind::Word => {
-                    if self.tokens.peek().is_none() {
-                        match token.text.as_str() {
-                            "true" => return Expr::Literal(Literal::Bool(true)),
-                            "false" => return Expr::Literal(Literal::Bool(false)),
-                            _ => {}
-                        }
-                        return Expr::Variable(token.text);
-                    }
-
-                    let next_token = self.tokens.peek().unwrap();
-                    if next_token.kind == TokenKind::OpenParen {
-                        self.tokens.next();
+                    // Funcall
+                    if self.tokens.next_if(|token| token.kind == TokenKind::OpenParen).is_some() {
                         let mut args = Vec::new();
 
                         if self.tokens.peek().is_some_and(|t| t.kind != TokenKind::CloseParen) {
@@ -317,14 +306,16 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                             name: token.text,
                             args,
                         };
-                    } else {
-                        match token.text.as_str() {
-                            "true" => return Expr::Literal(Literal::Bool(true)),
-                            "false" => return Expr::Literal(Literal::Bool(false)),
-                            _ => {}
-                        }
-                        return Expr::Variable(token.text);
                     }
+
+                    // Boolean literals
+                    match token.text.as_str() {
+                        "true" => return Expr::Literal(Literal::Bool(true)),
+                        "false" => return Expr::Literal(Literal::Bool(false)),
+                        _ => {},
+                    }
+
+                    return Expr::Variable(token.text);
                 }
                 TokenKind::OpenParen => {
                     let expr = self.parse_expression();
