@@ -195,6 +195,11 @@ impl<'a, W: Write> Generator<'a, W> {
                 writeln!(self.out, "    adrp    {}, string.{}@PAGE", target_reg, idx)?;
                 writeln!(self.out, "    add     {}, {}, string.{}@PAGEOFF", target_reg, target_reg, idx)
             },
+            Literal::Bool(value) => {
+                self.c(&format!("bool: {}", value), true)?;
+                writeln!(self.out, "    mov     {}, {}", target_reg, *value as i8)?;
+                Ok(())
+            }
         }
     }
 

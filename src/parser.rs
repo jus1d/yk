@@ -63,6 +63,7 @@ pub enum Statement {
 pub enum Literal {
     Number(i64),
     String(String),
+    Bool(bool),
 }
 
 #[derive(Clone)]
@@ -288,8 +289,14 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
             match token.kind {
                 TokenKind::Number => return Expr::Literal(Literal::Number(token.number)),
                 TokenKind::String => return Expr::Literal(Literal::String(token.text)),
+                // TODO: refactor this peace of code
                 TokenKind::Word => {
                     if self.tokens.peek().is_none() {
+                        match token.text.as_str() {
+                            "true" => return Expr::Literal(Literal::Bool(true)),
+                            "false" => return Expr::Literal(Literal::Bool(false)),
+                            _ => {}
+                        }
                         return Expr::Variable(token.text);
                     }
 
@@ -311,6 +318,11 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                             args,
                         };
                     } else {
+                        match token.text.as_str() {
+                            "true" => return Expr::Literal(Literal::Bool(true)),
+                            "false" => return Expr::Literal(Literal::Bool(false)),
+                            _ => {}
+                        }
                         return Expr::Variable(token.text);
                     }
                 }
@@ -599,6 +611,7 @@ impl fmt::Display for Literal {
         match self {
             Literal::Number(value) => write!(f, "{}", value),
             Literal::String(content) => write!(f, "\"{}\"", content),
+            Literal::Bool(value) => write!(f, "{}", value),
         }
     }
 }

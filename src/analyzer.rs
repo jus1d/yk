@@ -247,6 +247,7 @@ fn get_expr_type(ast: &Ast, expr: &Expr, vars: &Vec<Variable>) -> String {
         Expr::Literal(literal) => match literal {
             Literal::Number(_) => return String::from("int64"),
             Literal::String(_) => return String::from("string"),
+            Literal::Bool(_) => return String::from("bool"),
         },
         Expr::Binary { op, lhs: _, rhs: _ } => {
             return get_binop_type(op);
