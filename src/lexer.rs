@@ -233,7 +233,15 @@ impl<Chars: Iterator<Item = char> + Clone> Iterator for Lexer<Chars> {
             '-' => return Some(Token::with_text(TokenKind::Minus, &text, loc)),
             '*' => return Some(Token::with_text(TokenKind::Star, &text, loc)),
             // TODO: parse inline comment
-            '/' => return Some(Token::with_text(TokenKind::Slash, &text, loc)),
+            '/' => {
+                if self.chars.next_if(|ch| *ch == '/').is_some() {
+                    while let Some(ch) = self.chars.next() {
+                        if ch == '\n' { break; }
+                    }
+                    return self.next();
+                }
+                return Some(Token::with_text(TokenKind::Slash, &text, loc))
+            },
             '%' => return Some(Token::with_text(TokenKind::Percent, &text, loc)),
             '|' => {
                 if self.chars.next_if(|ch| *ch == '|').is_some() {

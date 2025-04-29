@@ -1,0 +1,8 @@
+// These includes over HTTPS made entirely for fun
+include "https://raw.githubusercontent.com/jus1d/yk/refs/heads/master/std/std.yk";
+
+fn main() int64 {
+    let x: int64 = pow(2, 3);
+    puts("2 ** 3 = "); puti(x);
+    ret 0;
+}
