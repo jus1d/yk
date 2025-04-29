@@ -1,8 +1,4 @@
-fn pow(int64 x, int64 power) int64 {
-    let result: int64 = 1;
-    while power > 0 {
-        result = result * x;
-        power = power - 1;
-    }
-    ret result;
+fn putsln(string s) {
+    puts(s);
+    puts("\n");
 }
