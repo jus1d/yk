@@ -21,7 +21,6 @@ macro_rules! usage {
 pub struct Opts {
     program_name: String,
     pub input_path: String,
-    pub use_custom_output: bool,
     pub output_path: String,
     pub disable_analyzing: bool,
     pub emit_comments: bool,
@@ -33,7 +32,6 @@ impl Opts {
         let mut opts = Opts {
             program_name: String::new(),
             input_path: String::new(),
-            use_custom_output: false,
             output_path: String::new(),
             disable_analyzing: false,
             emit_comments: false,
@@ -46,7 +44,6 @@ impl Opts {
                 "-o" => {
                     match args.next() {
                         Some(output_path) => {
-                            opts.use_custom_output = true;
                             opts.output_path = output_path;
                         },
                         None => {
@@ -77,10 +74,6 @@ impl Opts {
         if opts.input_path.is_empty() {
             usage!(opts.program_name);
             diag::fatal!("no input files");
-        }
-
-        if opts.output_path.is_empty() {
-            opts.output_path = String::from("stdout");
         }
 
         opts

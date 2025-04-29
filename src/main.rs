@@ -35,15 +35,15 @@ fn main() {
 
     if cfg![target_arch = "aarch64"] {
         let compiler = compiler::Compiler::new(ast);
-        if opts.use_custom_output {
+        if opts.output_path.is_empty() {
+            let mut stdout = io::stdout().lock();
+            compiler.compile(&mut stdout, opts.emit_comments).unwrap();
+        } else {
             let mut file = match File::create(&opts.output_path) {
                 Ok(file) => file,
                 Err(err) => diag::fatal!("failed to open file `{}`: {}", opts.output_path, err),
             };
             compiler.compile(&mut file, opts.emit_comments).unwrap();
-        } else {
-            let mut stdout = io::stdout().lock();
-            compiler.compile(&mut stdout, opts.emit_comments).unwrap();
         };
     } else {
         diag::fatal!("unsupported architecture. only `aarch64` is supported now");
