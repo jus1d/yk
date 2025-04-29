@@ -1,3 +1,7 @@
+include "std.yk";
+
 fn main() int64 {
+    let x: int64 = pow(2, 3);
+    puts("2 ** 3 = "); puti(x);
     ret 0;
 }

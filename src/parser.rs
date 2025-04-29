@@ -1,8 +1,8 @@
-use crate::lexer::{Token, TokenKind};
+use crate::lexer::{self, Token, TokenKind};
 use crate::diag;
 
 use std::collections::HashMap;
-use std::fmt;
+use std::{fmt, fs};
 use std::iter::Peekable;
 
 pub const KEYWORDS: &[&'static str] = &[
@@ -100,13 +100,50 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
     }
 
     pub fn parse_ast(&mut self) -> Ast {
-        let mut program = Ast { functions: HashMap::new() };
+        let mut ast = Ast { functions: HashMap::new() };
 
-        while let Some(function) = self.parse_function() {
-            program.functions.insert(function.name.clone(), function);
+        while let Some(token) = self.tokens.next() {
+            match token.kind {
+                TokenKind::Word => {
+                    match token.text.as_str() {
+                        "fn" => {
+                            let func = self.parse_function();
+                            ast.functions.insert(func.name.clone(), func);
+                        },
+                        "include" => {
+                            let include_path = if let Some(path) = self.tokens.next() {
+                                if path.kind != TokenKind::String {
+                                    diag::fatal!("expected include string, got token kind {}", path.kind);
+                                }
+                                path.text
+                            }
+                            else {
+                                diag::fatal!(token.loc, "expected include string, got EOF");
+                            };
+
+                            let source = fs::read_to_string(&include_path).unwrap_or_else(|_| {
+                                diag::fatal!("included file '{}' not found", include_path);
+                            });
+
+                            let lexer = lexer::Lexer::new(source.chars(), &include_path);
+                            let mut parser = Parser::from_iter(lexer);
+
+                            let included_ast = parser.parse_ast();
+
+                            for (name, func) in included_ast.functions {
+                                ast.functions.insert(name, func);
+                            }
+
+                            self.expect(TokenKind::Semicolon);
+                        },
+                        _ => diag::fatal!(token.loc, "unexpected token `{}`. expected `fn ...` or `include` statement", token.text),
+                    }
+                },
+                _ => diag::fatal!(token.loc, "unexpected token kind `{}`. expected `fn ...` or `include` statement", token.kind),
+            }
         }
 
-        return program;
+        ast
     }
 
     pub fn parse_param(&mut self) -> Option<Variable> {
@@ -138,12 +175,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
         }
     }
 
-    pub fn parse_function(&mut self) -> Option<Function> {
-        let kw = self.tokens.next()?;
-        if kw.kind != TokenKind::Word || kw.text != "fn" {
-            diag::fatal!(kw.loc, "unexpected token. expected keyword `fn`, got `{}`", kw.text);
-        }
-
+    pub fn parse_function(&mut self) -> Function {
         let name = self.tokens.next().unwrap();
         if name.kind != TokenKind::Word {
             diag::fatal!(name.loc, "unexpected token. expected `word`, got {}", name.kind);
@@ -172,12 +204,12 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                 TokenKind::OpenCurly => {
                     let body = self.parse_block();
 
-                    return Some(Function {
+                    return Function {
                         name: name.text,
                         ret_type: "void".to_string(),
                         params,
                         body,
-                    });
+                    };
                 }
                 TokenKind::Word | TokenKind::Exclamation => {
                     let ret_type = self.tokens.next().unwrap();
@@ -186,12 +218,12 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                     }
 
                     let body = self.parse_block();
-                    return Some(Function {
+                    return Function {
                         name: name.text,
                         ret_type: ret_type.text,
                         params,
                         body,
-                    });
+                    };
                 }
                 other => diag::fatal!(token.loc, "expected block or return type, got {}", other),
             },

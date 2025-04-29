@@ -17,7 +17,7 @@ fn main() {
     let opts = Opts::parse_args(args);
 
     let source = fs::read_to_string(&opts.input_path).unwrap_or_else(|_| {
-        diag::fatal!("failed to read frome file '{}'", opts.input_path);
+        diag::fatal!("failed to read from file '{}'", opts.input_path);
     });
 
     let lexer = lexer::Lexer::new(source.chars(), &opts.input_path);
