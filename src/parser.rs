@@ -2,8 +2,10 @@ use crate::lexer::{self, Token, TokenKind};
 use crate::diag;
 
 use std::collections::HashMap;
+use std::path::Path;
 use std::{fmt, fs};
 use std::iter::Peekable;
+use std::process::Command;
 
 pub const KEYWORDS: &[&'static str] = &[
     "fn", "ret",
@@ -121,9 +123,26 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                                 diag::fatal!(token.loc, "expected include string, got EOF");
                             };
 
-                            let source = fs::read_to_string(&include_path).unwrap_or_else(|_| {
-                                diag::fatal!("included file '{}' not found", include_path);
-                            });
+                            if let Some(ext) = Path::new(&include_path).extension().and_then(|ext| ext.to_str()) {
+                                if ext != "yk" {
+                                    diag::fatal!("included file '{}' has wrong extension: `{}`, expected `yk`", include_path, ext);
+                                }
+                            }
+                            else {
+                                diag::fatal!("included file '{}' has wrong extension", include_path);
+                            }
+
+                            let source = if include_path.starts_with("https://") {
+                                read_source_via_https(&include_path)
+                            } else {
+                                fs::read_to_string(&include_path).unwrap_or_else(|_| {
+                                    diag::fatal!("included file '{}' not found", include_path);
+                                })
+                            };
+
+                            if source.is_empty() {
+                                continue;
+                            }
 
                             let lexer = lexer::Lexer::new(source.chars(), &include_path);
                             let mut parser = Parser::from_iter(lexer);
@@ -139,7 +158,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                         _ => diag::fatal!(token.loc, "unexpected token `{}`. expected `fn ...` or `include` statement", token.text),
                     }
                 },
-                _ => diag::fatal!(token.loc, "unexpected token kind `{}`. expected `fn ...` or `include` statement", token.kind),
+                _ => diag::fatal!(token.loc, "unexpected token kind {}. expected `fn ...` or `include` statement", token.kind),
             }
         }
 
@@ -675,4 +694,21 @@ impl fmt::Display for BinaryOp {
             }
         )
     }
+}
+
+fn read_source_via_https(url: &str) -> String {
+    let output = match Command::new("curl").arg("-s").arg("-S").arg("-L").arg("-f").arg(url).output() {
+        Ok(out) => out,
+        Err(err) => diag::fatal!("can't get source via HTTPS: {}", err)
+    };
+
+    if !output.status.success() {
+        diag::fatal!("can't include via HTTPS: {}", url);
+    }
+
+    let source = String::from_utf8(output.stdout).unwrap_or_else(|err| {
+        diag::fatal!("can't read source from response: {}", err);
+    });
+
+    source
 }

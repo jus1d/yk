@@ -1,4 +1,4 @@
-include "std.yk";
+include "std/std.yk";
 
 fn main() int64 {
     let x: int64 = pow(2, 3);
