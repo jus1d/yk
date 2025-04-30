@@ -452,3 +452,5 @@ fn stack_size(offset: usize) -> usize {
     let stack_size = 16 + (offset * 8);
     stack_size
 }
+
+// TODO: Variables, defined in non-global scope are inaccessible
