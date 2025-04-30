@@ -16,13 +16,11 @@ fn main() int64 {
         else if counter % 5 == 0 {
             puts("counter is divisible by 5, counter = ");
             puti(counter);
-            puti(34 + 35);
         } else {
             puts("number is prime: ");
             puti(counter);
         }
         counter = counter + 1;
     }
-    puti(34 + 35);
     ret 0;
 }

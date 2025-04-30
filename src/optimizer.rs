@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 
-use crate::{diag, parser::{Ast, BinaryOp, Expr, Literal, Statement}};
+use crate::diag;
+use crate::parser::{Ast, BinaryOp, Expr, Literal, Statement};
 
 pub fn precompute_expressions(ast: &mut Ast) {
     ast.functions.values_mut().for_each(|func| {
@@ -39,10 +40,12 @@ fn mark_unused_functions_statement(statement: &Statement, used_funcs: &mut HashS
                 mark_unused_functions_expression(expr, used_funcs);
             }
         }
-        Statement::If { condition, consequence, otherwise } => {
-            mark_unused_functions_expression(condition, used_funcs);
-            for statement in consequence {
-                mark_unused_functions_statement(statement, used_funcs);
+        Statement::If { branches, otherwise } => {
+            for branch in branches {
+                mark_unused_functions_expression(&branch.condition, used_funcs);
+                for mut statement in &branch.block {
+                    mark_unused_functions_statement(&mut statement, used_funcs);
+                }
             }
             for statement in otherwise {
                 mark_unused_functions_statement(statement, used_funcs);
@@ -97,10 +100,12 @@ fn precompute_statement(statement: &mut Statement) {
                 precompute_expr(expr);
             }
         },
-        Statement::If { condition, consequence, otherwise } => {
-            precompute_expr(condition);
-            for statement in consequence {
-                precompute_statement(statement);
+        Statement::If { branches, otherwise } => {
+            for branch in branches.iter_mut() {
+                precompute_expr(&mut branch.condition);
+                for statement in &mut branch.block {
+                    precompute_statement(statement);
+                }
             }
             for statement in otherwise {
                 precompute_statement(statement);

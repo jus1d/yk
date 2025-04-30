@@ -74,17 +74,20 @@ fn typecheck_statement(ast: &Ast, func: &Function, statement: &Statement, vars: 
                 typecheck_expr(ast, expr, vars, builtin_funcs, &ast.functions);
             }
         },
-        Statement::If { condition, consequence, otherwise } => {
-            let condition_type = get_expr_type(ast, condition, vars);
-            if condition_type != "bool" {
-                diag::fatal!("expected a `bool` condition, got `{}`", condition_type);
+        Statement::If { branches, otherwise } => {
+            for branch in branches {
+                let condition_type = get_expr_type(ast, &branch.condition, vars);
+                if condition_type != "bool" {
+                    diag::fatal!("expected a `bool` condition, got `{}`", condition_type);
+                }
+
+                for statement in &branch.block {
+                    typecheck_statement(ast, func, statement, vars, builtin_funcs);
+                }
             }
 
-            for s in consequence {
-                typecheck_statement(ast, func, s, vars, builtin_funcs);
-            }
-            for s in otherwise {
-                typecheck_statement(ast, func, s, vars, builtin_funcs);
+            for statement in otherwise {
+                typecheck_statement(ast, func, statement, vars, builtin_funcs);
             }
         },
         Statement::While { condition, block } => {

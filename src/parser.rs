@@ -13,12 +13,12 @@ pub const KEYWORDS: &[&'static str] = &[
     "true", "false",
 ];
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Ast {
     pub functions: HashMap<String, Function>
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Function {
     pub name: String,
     pub ret_type: String,
@@ -26,21 +26,26 @@ pub struct Function {
     pub body: Vec<Statement>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Variable {
     pub name: String,
     pub typ: String,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
+pub struct Branch {
+    pub condition: Expr,
+    pub block: Vec<Statement>,
+}
+
+#[derive(Clone, Debug)]
 pub enum Statement {
     Funcall {
         name: String,
         args: Vec<Expr>
     },
     If {
-        condition: Expr,
-        consequence: Vec<Statement>,
+        branches: Vec<Branch>,
         otherwise: Vec<Statement>
     },
     While {
@@ -61,14 +66,14 @@ pub enum Statement {
     },
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Literal {
     Number(i64),
     String(String),
     Bool(bool),
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Expr {
     Variable(String),
     Literal(Literal),
@@ -83,7 +88,7 @@ pub enum Expr {
     },
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum BinaryOp {
     Add, Sub, Mul, Div, Mod,
     EQ, NE, GT, LT, GE, LE,
@@ -392,17 +397,32 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                         return Statement::Ret { value: Some(value) };
                     },
                     "if" => {
-                        let condition = self.parse_expression();
+                        let mut branches = Vec::new();
 
-                        let consequence = self.parse_block();
+                        let mut condition = self.parse_expression();
+                        let mut consequence = self.parse_block();
 
-                        if self.tokens.next_if(|t| t.kind == TokenKind::Word && &t.text == "else").is_some() {
-                            let otherwise = self.parse_block();
+                        branches.push(Branch {
+                            condition,
+                            block: consequence,
+                        });
 
-                            return Statement::If { condition, consequence, otherwise }
+                        while let Some(_) = self.tokens.next_if(|t| t.kind == TokenKind::Word && &t.text == "else") {
+                            if let Some(_) = self.tokens.next_if(|t| t.kind == TokenKind::Word && &t.text == "if") {
+                                condition = self.parse_expression();
+                                consequence = self.parse_block();
+
+                                branches.push(Branch {
+                                    condition,
+                                    block: consequence,
+                                });
+                            } else {
+                                let otherwise = self.parse_block();
+                                return Statement::If { branches, otherwise }
+                            }
                         }
 
-                        return Statement::If { condition, consequence, otherwise: Vec::new() }
+                        return Statement::If { branches, otherwise: Vec::new() }
                     },
                     "while" => {
                         if let Some(next) = self.tokens.peek() {
@@ -597,18 +617,19 @@ impl fmt::Display for Statement {
                 write!(f, ");")?;
                 Ok(())
             }
-            Statement::If { condition, consequence, otherwise } => {
-                writeln!(f, "if {} {{", condition)?;
-                for stmt in consequence {
-                    writeln!(f, "    {}", stmt)?;
-                }
-                write!(f, "    }}")?;
-                writeln!(f, "else {} {{", condition)?;
-                for stmt in otherwise {
-                    writeln!(f, "    {}", stmt)?;
-                }
-                write!(f, "    }}")?;
-                Ok(())
+            Statement::If { .. } => {
+                // writeln!(f, "if {} {{", condition)?;
+                // for stmt in consequence {
+                //     writeln!(f, "    {}", stmt)?;
+                // }
+                // write!(f, "    }}")?;
+                // writeln!(f, "else {} {{", condition)?;
+                // for stmt in otherwise {
+                //     writeln!(f, "    {}", stmt)?;
+                // }
+                // write!(f, "    }}")?;
+                // Ok(())
+                todo!()
             },
             Statement::While { condition, block } => {
                 if let Some(expr) = condition {
@@ -713,5 +734,4 @@ fn read_source_via_https(url: &str) -> String {
     source
 }
 
-// TODO: Introduce support for `else if` statement
 // TODO: Introduce support for constants

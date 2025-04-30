@@ -113,32 +113,38 @@ impl<'a, W: Write> Generator<'a, W> {
                 }
                 self.write_func_epilogue(current_func.params.len() + declarations_count)
             }
-            Statement::If { condition, consequence, otherwise } => {
-                let else_label = self.label();
-                let end_label = self.label();
+            Statement::If { branches, otherwise } => {
+                let mut labels: Vec<String> = vec![];
+                let n = branches.len() + 2;
 
-                self.write_expression(condition, current_func, "x11")?;
-                self.c(&format!("condition: {}", condition), true)?;
-                writeln!(self.out, "    cmp     x11, 0")?;
-                writeln!(self.out, "    b.eq    {}", else_label)?;
+                for _ in 0..n {
+                    labels.push(self.label());
+                }
 
-                if consequence.len() > 0 {
-                    self.c("consequence", true)?;
-                    for statement in consequence {
+                let label_end = &labels[n-1];
+                let label_otherwise = &labels[n-2];
+
+                for (i, branch) in branches.iter().enumerate() {
+                    writeln!(self.out, "{}:", labels[i])?;
+                    self.write_expression(&branch.condition, current_func, "x11")?;
+                    self.c(&format!("condition: {}", branch.condition), true)?;
+                    writeln!(self.out, "    cmp     x11, 0")?;
+                    writeln!(self.out, "    b.eq    {}", labels[i+1])?;
+                    for statement in &branch.block {
                         self.write_statement(statement, current_func, declarations_count)?;
                     }
+                    writeln!(self.out, "    b       {}", label_end)?;
                 }
-                writeln!(self.out, "    b       {}", end_label)?;
 
-                writeln!(self.out, "{}:", else_label)?;
+                self.c("otherwise", true)?;
+                writeln!(self.out, "{}:", label_otherwise)?;
                 if otherwise.len() > 0 {
-                    self.c("otherwise", true)?;
                     for statement in otherwise {
                         self.write_statement(statement, current_func, declarations_count)?;
                     }
                 }
+                writeln!(self.out, "{}:", label_end)?;
 
-                writeln!(self.out, "{}:", end_label)?;
                 Ok(())
             },
             Statement::While { condition, block } => {
