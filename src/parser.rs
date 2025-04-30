@@ -340,6 +340,18 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
             match token.kind {
                 TokenKind::Number => return Expr::Literal(Literal::Number(token.number)),
                 TokenKind::String => return Expr::Literal(Literal::String(token.text)),
+                // Negative integer
+                TokenKind::Minus => {
+                    match self.tokens.next() {
+                        None => diag::fatal!(token.loc, "expected expression, found EOF"),
+                        Some(token) => {
+                            match token.kind {
+                                TokenKind::Number => return Expr::Literal(Literal::Number(-token.number)),
+                                _ => diag::fatal!(token.loc, "expected integer after `-`, got `{}`", token.kind),
+                            }
+                        }
+                    }
+                },
                 TokenKind::Word => {
                     // Funcall
                     if self.tokens.next_if(|token| token.kind == TokenKind::OpenParen).is_some() {

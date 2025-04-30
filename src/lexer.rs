@@ -229,10 +229,8 @@ impl<Chars: Iterator<Item = char> + Clone> Iterator for Lexer<Chars> {
             ':' => return Some(Token::with_text(TokenKind::Colon, &text, loc)),
             ',' => return Some(Token::with_text(TokenKind::Comma, &text, loc)),
             '+' => return Some(Token::with_text(TokenKind::Plus, &text, loc)),
-            // TODO: parse negative integer
             '-' => return Some(Token::with_text(TokenKind::Minus, &text, loc)),
             '*' => return Some(Token::with_text(TokenKind::Star, &text, loc)),
-            // TODO: parse inline comment
             '/' => {
                 if self.chars.next_if(|ch| *ch == '/').is_some() {
                     while let Some(ch) = self.chars.next() {

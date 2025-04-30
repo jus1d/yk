@@ -1,3 +1,12 @@
+include "std/std.yk";
+
 fn main() int64 {
+    let counter: int64 = -10;
+
+    while counter <= 10 {
+        puti(counter);
+        putiln(counter);
+        counter = counter + 1;
+    }
     ret 0;
 }

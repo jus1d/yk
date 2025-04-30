@@ -1,9 +1,11 @@
+include "std/std.yk";
+
 fn main() int64 {
-    let x: int64 = 0-5;
-    while x <= 5 {
-        puts("x = ");
-        puti(x);
-        x = x + 1;
+    let counter: int64 = -10;
+
+    while counter <= 10 {
+        putiln(counter);
+        counter = counter + 1;
     }
     ret 0;
 }
