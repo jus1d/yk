@@ -145,7 +145,7 @@ fn precompute_expr(expr: &mut Expr) {
         }
 
         if let (Expr::Literal(_), Expr::Literal(_)) = (lhs.as_ref(), rhs.as_ref()) {
-            *expr = evaluate(op, lhs, rhs);
+            *expr = evaluate_integer(op, lhs, rhs);
         }
     }
 }
@@ -154,7 +154,7 @@ fn is_precomputable(op: &BinaryOp) -> bool {
     matches!(op, BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Div)
 }
 
-fn evaluate(op: &BinaryOp, lhs: &Expr, rhs: &Expr) -> Expr {
+fn evaluate_integer(op: &BinaryOp, lhs: &Expr, rhs: &Expr) -> Expr {
     match (get_integer_value(lhs), get_integer_value(rhs)) {
         (Some(l), Some(r)) => {
             let value = match op {

@@ -389,7 +389,6 @@ impl<'a, W: Write> Generator<'a, W> {
         writeln!(self.out, "    movk    x9, 0xCCCC, lsl 16")?;
         writeln!(self.out, "    movk    x9, 0xCCCC, lsl 32")?;
         writeln!(self.out, "    movk    x9, 0xCCCD, lsl 48")?;
-        writeln!(self.out, "    mov     w11, 10")?;
         writeln!(self.out, "    strb    w11, [x29, 47]")?;
         writeln!(self.out, "    add     x2, x29, 46")?;
         writeln!(self.out, "    mov     x5, x0")?;

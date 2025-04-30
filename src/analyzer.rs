@@ -156,7 +156,14 @@ fn typecheck_binop(ast: &Ast, op: &BinaryOp, lhs: &Expr, rhs: &Expr, vars: &Vec<
                 diag::fatal!("operands of different types. logical operations can be applied only for `int64` or `bool`");
             }
         },
-        _ => todo!(),
+        BinaryOp::LogicalOr | BinaryOp::LogicalAnd => {
+            if lhs_type != "bool" {
+                diag::fatal!("logical operations only supported between booleans");
+            }
+            if rhs_type != "bool" {
+                diag::fatal!("logical operations only supported between booleans");
+            }
+        }
     }
 }
 
@@ -238,10 +245,10 @@ fn get_binop_type(op: &BinaryOp) -> String {
         BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Div | BinaryOp::Mod => {
             return String::from("int64");
         },
-        BinaryOp::EQ | BinaryOp::NE | BinaryOp::GT | BinaryOp::LT | BinaryOp::LE | BinaryOp::GE => {
+        BinaryOp::LogicalOr | BinaryOp::LogicalAnd | BinaryOp::EQ | BinaryOp::NE |
+        BinaryOp::GT | BinaryOp::LT | BinaryOp::LE | BinaryOp::GE => {
             return String::from("bool");
         },
-        _ => todo!(),
     }
 }
 

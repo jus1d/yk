@@ -572,106 +572,21 @@ pub fn get_variable_position(name: &str, func: &Function) -> usize {
     }
 }
 
+fn read_source_via_https(url: &str) -> String {
+    let output = match Command::new("curl").arg("-s").arg("-S").arg("-L").arg("-f").arg(url).output() {
+        Ok(out) => out,
+        Err(err) => diag::fatal!("can't get source via HTTPS: {}", err)
+    };
 
-impl fmt::Display for Ast {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for (i, (_, function)) in self.functions.iter().enumerate() {
-            write!(f, "{}", function)?;
-            if i != self.functions.len() - 1 {
-                writeln!(f, "\n")?;
-            }
-        }
-        Ok(())
+    if !output.status.success() {
+        diag::fatal!("can't include via HTTPS: {}", url);
     }
-}
 
-impl fmt::Display for Function {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "fn {}(", self.name)?;
-        for (i, param) in self.params.iter().enumerate() {
-            if i == 0 {
-                write!(f, "{} {}", param.typ, param.name)?;
-            } else {
-                write!(f, ", {} {}", param.typ, param.name)?;
-            }
-        }
-        write!(f, ") {} {{\n", self.ret_type)?;
-        for statement in &self.body {
-            writeln!(f, "    {}", statement)?;
-        }
-        write!(f, "}}")
-    }
-}
+    let source = String::from_utf8(output.stdout).unwrap_or_else(|err| {
+        diag::fatal!("can't read source from response: {}", err);
+    });
 
-impl fmt::Display for Statement {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Statement::Funcall { name, args } => {
-                write!(f, "{}(", name)?;
-                for (i, arg) in args.iter().enumerate() {
-                    if i > 0 {
-                        write!(f, ", ")?;
-                    }
-                    write!(f, "{}", arg)?;
-                }
-                write!(f, ");")?;
-                Ok(())
-            }
-            Statement::If { .. } => {
-                // writeln!(f, "if {} {{", condition)?;
-                // for stmt in consequence {
-                //     writeln!(f, "    {}", stmt)?;
-                // }
-                // write!(f, "    }}")?;
-                // writeln!(f, "else {} {{", condition)?;
-                // for stmt in otherwise {
-                //     writeln!(f, "    {}", stmt)?;
-                // }
-                // write!(f, "    }}")?;
-                // Ok(())
-                todo!()
-            },
-            Statement::While { condition, block } => {
-                if let Some(expr) = condition {
-                    writeln!(f, "while {} {{", expr)?;
-                } else {
-                    writeln!(f, "while true {{")?;
-                }
-
-                for stmt in block {
-                    writeln!(f, "    {}", stmt)?;
-                }
-                write!(f, "    }}")?;
-                Ok(())
-            },
-            Statement::Ret { value } => match value {
-                Some(value) => write!(f, "ret {};", value),
-                None => write!(f, "ret;"),
-            },
-            Statement::Declaration { name, typ, value } => {
-                if let Some(expr) = value {
-                    write!(f, "let {}: {} = {}", name, typ, expr)?;
-                } else {
-                    write!(f, "let {}: {};", name, typ)?;
-                }
-
-                Ok(())
-            },
-            Statement::Assignment { name, value } => {
-                write!(f, "{} = {}", name, value)
-            }
-        }
-    }
-}
-
-impl fmt::Display for Literal {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Literal::Number(value) => write!(f, "{}", value),
-            Literal::String(content) => write!(f, "\"{}\"", content),
-            Literal::Bool(value) => write!(f, "{}", value),
-        }
-    }
+    source
 }
 
 impl fmt::Display for Expr {
@@ -717,21 +632,14 @@ impl fmt::Display for BinaryOp {
     }
 }
 
-fn read_source_via_https(url: &str) -> String {
-    let output = match Command::new("curl").arg("-s").arg("-S").arg("-L").arg("-f").arg(url).output() {
-        Ok(out) => out,
-        Err(err) => diag::fatal!("can't get source via HTTPS: {}", err)
-    };
-
-    if !output.status.success() {
-        diag::fatal!("can't include via HTTPS: {}", url);
+impl fmt::Display for Literal {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Literal::Number(value) => write!(f, "{}", value),
+            Literal::String(content) => write!(f, "\"{}\"", content),
+            Literal::Bool(value) => write!(f, "{}", value),
+        }
     }
-
-    let source = String::from_utf8(output.stdout).unwrap_or_else(|err| {
-        diag::fatal!("can't read source from response: {}", err);
-    });
-
-    source
 }
 
 // TODO: Introduce support for constants
