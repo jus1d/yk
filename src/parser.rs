@@ -13,12 +13,12 @@ pub const KEYWORDS: &[&'static str] = &[
     "true", "false",
 ];
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Ast {
     pub functions: HashMap<String, Function>
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Function {
     pub name: String,
     pub ret_type: String,
@@ -32,13 +32,13 @@ pub struct Variable {
     pub typ: String,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Branch {
     pub condition: Expr,
     pub block: Vec<Statement>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub enum Statement {
     Funcall {
         name: String,
@@ -66,14 +66,14 @@ pub enum Statement {
     },
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub enum Literal {
     Number(i64),
     String(String),
     Bool(bool),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub enum Expr {
     Variable(String),
     Literal(Literal),
@@ -88,7 +88,7 @@ pub enum Expr {
     },
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub enum BinaryOp {
     Add, Sub, Mul, Div, Mod,
     EQ, NE, GT, LT, GE, LE,
@@ -648,7 +648,7 @@ impl fmt::Display for Literal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Literal::Number(value) => write!(f, "{}", value),
-            Literal::String(content) => write!(f, "\"{}\"", content),
+            Literal::String(content) => write!(f, "\"{}\"", content.replace("\n", "\\n")),
             Literal::Bool(value) => write!(f, "{}", value),
         }
     }

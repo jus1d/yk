@@ -1,6 +1,7 @@
 use std::io::{self, Write};
 
-use crate::parser::{self, Ast, BinaryOp, Expr, Function, Literal, Statement};
+use crate::diag;
+use crate::parser::{Ast, BinaryOp, Expr, Function, Literal, Statement, Variable};
 
 pub struct Generator<'a, W: Write> {
     out: W,
@@ -72,10 +73,15 @@ impl<'a, W: Write> Generator<'a, W> {
             }
         }
 
+        let mut scope = Vec::new();
+        for arg in func.params.clone() {
+            scope.push(arg);
+        }
+
         if func.body.len() > 0 {
             self.c(&format!("body: {}", func.name), true)?;
             for statement in &func.body {
-                self.write_statement(statement, func, declarations_count)?;
+                self.write_statement(statement, func, declarations_count, &mut scope)?;
             }
         }
 
@@ -105,11 +111,11 @@ impl<'a, W: Write> Generator<'a, W> {
         writeln!(self.out, "    ret")
     }
 
-    fn write_statement(&mut self, statement: &Statement, current_func: &Function, declarations_count: usize) -> io::Result<()> {
+    fn write_statement(&mut self, statement: &Statement, current_func: &Function, declarations_count: usize, scope: &mut Vec<Variable>) -> io::Result<()> {
         match statement {
             Statement::Ret { value } => {
                 if let Some(expr) = value {
-                    self.write_expression(expr, current_func, "x0")?;
+                    self.write_expression(expr, scope, current_func, "x0")?;
                 }
                 self.write_func_epilogue(current_func.params.len() + declarations_count)
             }
@@ -125,24 +131,28 @@ impl<'a, W: Write> Generator<'a, W> {
                 let label_otherwise = &labels[n-2];
 
                 for (i, branch) in branches.iter().enumerate() {
+                    let saved_scope = scope.clone();
                     writeln!(self.out, "{}:", labels[i])?;
-                    self.write_expression(&branch.condition, current_func, "x11")?;
+                    self.write_expression(&branch.condition, scope, current_func, "x11")?;
                     self.c(&format!("condition: {}", branch.condition), true)?;
                     writeln!(self.out, "    cmp     x11, 0")?;
                     writeln!(self.out, "    b.eq    {}", labels[i+1])?;
                     for statement in &branch.block {
-                        self.write_statement(statement, current_func, declarations_count)?;
+                        self.write_statement(statement, current_func, declarations_count, scope)?;
                     }
                     writeln!(self.out, "    b       {}", label_end)?;
+                    *scope = saved_scope.clone();
                 }
 
                 self.c("otherwise", true)?;
                 writeln!(self.out, "{}:", label_otherwise)?;
+                let saved_scope = scope.clone();
                 if otherwise.len() > 0 {
                     for statement in otherwise {
-                        self.write_statement(statement, current_func, declarations_count)?;
+                        self.write_statement(statement, current_func, declarations_count, scope)?;
                     }
                 }
+                *scope = saved_scope.clone();
                 writeln!(self.out, "{}:", label_end)?;
 
                 Ok(())
@@ -153,7 +163,7 @@ impl<'a, W: Write> Generator<'a, W> {
 
                 writeln!(self.out, "{}:", start_label)?;
                 if let Some(expr) = condition {
-                    self.write_expression(expr, current_func, "x12")?;
+                    self.write_expression(expr, scope, current_func, "x12")?;
                     writeln!(self.out, "    cmp     x12, 0")?;
                     writeln!(self.out, "    b.eq    {}", end_label)?;
                 } else {
@@ -162,40 +172,45 @@ impl<'a, W: Write> Generator<'a, W> {
                     writeln!(self.out, "    b.eq    {}", end_label)?;
                 }
 
+                let saved_scope = scope.clone();
                 for s in block {
-                    self.write_statement(s, current_func, declarations_count)?;
+                    self.write_statement(s, current_func, declarations_count, scope)?;
                 }
+                *scope = saved_scope.clone();
                 writeln!(self.out, "    b       {}", start_label)?;
                 writeln!(self.out, "{}:", end_label)?;
                 Ok(())
             },
             Statement::Funcall { name, args } => {
-                self.write_funcall(name, args, current_func, "x0")
+                self.write_funcall(name, args, scope, current_func, "x0")?;
+                Ok(())
             },
-            Statement::Declaration { name, typ: _, value } => {
+            Statement::Declaration { name, typ, value } => {
+                scope.push(Variable { name: name.clone(), typ: typ.clone() });
                 if let Some(expr) = value {
-                    self.write_expression(expr, current_func, "x8")?;
+                    self.write_expression(expr, scope, current_func, "x8")?;
+                    // HERE
                     self.c(&format!("declaration: {} = {}", name, expr), true)?;
-                    writeln!(self.out, "    str     x8, [x29, {}]", 16 + parser::get_variable_position(name, current_func) * 8)?;
+                    writeln!(self.out, "    str     x8, [x29, {}]", 16 + get_variable_position(name, scope) * 8)?;
                 }
                 // Nothing to do, if value is empty. Variable will just allocated on the stack.
                 Ok(())
             },
             Statement::Assignment { name, value } => {
-                self.write_expression(value, current_func, "x8")?;
+                self.write_expression(value, scope, current_func, "x8")?;
                 self.c(&format!("assignment: {} = {}", name, value), true)?;
-                writeln!(self.out, "    str     x8, [x29, {}]", 16 + parser::get_variable_position(name, current_func) * 8)?;
+                writeln!(self.out, "    str     x8, [x29, {}]", 16 + get_variable_position(name, scope) * 8)?;
                 Ok(())
             }
         }
     }
 
-    fn write_expression(&mut self, expr: &Expr, current_func: &Function, target_reg: &str) -> io::Result<()> {
+    fn write_expression(&mut self, expr: &Expr, scope: &mut Vec<Variable>, current_func: &Function, target_reg: &str) -> io::Result<()> {
         match expr {
             Expr::Literal(lit) => self.write_literal(lit, target_reg),
-            Expr::Binary { op, lhs, rhs } => self.write_binop(op, lhs, rhs, current_func, target_reg),
-            Expr::Funcall { name, args } => self.write_funcall(name, args, current_func, target_reg),
-            Expr::Variable(name) => self.write_variable(name, current_func, target_reg),
+            Expr::Binary { op, lhs, rhs } => self.write_binop(op, lhs, rhs, scope, current_func, target_reg),
+            Expr::Funcall { name, args } => self.write_funcall(name, args, scope, current_func, target_reg),
+            Expr::Variable(name) => self.write_variable(name, scope, target_reg),
         }
     }
 
@@ -220,8 +235,8 @@ impl<'a, W: Write> Generator<'a, W> {
         }
     }
 
-    fn write_binop(&mut self, op: &BinaryOp, lhs: &Expr, rhs: &Expr, current_func: &Function, target_reg: &str) -> io::Result<()> {
-        self.write_expression(lhs, current_func, "x9")?;
+    fn write_binop(&mut self, op: &BinaryOp, lhs: &Expr, rhs: &Expr, scope: &mut Vec<Variable>, current_func: &Function, target_reg: &str) -> io::Result<()> {
+        self.write_expression(lhs, scope, current_func, "x9")?;
 
         match op {
             BinaryOp::LogicalOr => {
@@ -233,7 +248,7 @@ impl<'a, W: Write> Generator<'a, W> {
                 writeln!(self.out, "    cmp     x9, 0")?;
                 writeln!(self.out, "    b.ne    {}", true_label)?;
 
-                self.write_expression(rhs, current_func, "x10")?;
+                self.write_expression(rhs, scope, current_func, "x10")?;
                 writeln!(self.out, "    cmp     x10, 0")?;
                 writeln!(self.out, "    b.ne    {}", true_label)?;
 
@@ -253,7 +268,7 @@ impl<'a, W: Write> Generator<'a, W> {
                 writeln!(self.out, "    cmp     x9, 0")?;
                 writeln!(self.out, "    b.eq    {}", false_label)?;
 
-                self.write_expression(rhs, current_func, "x10")?;
+                self.write_expression(rhs, scope, current_func, "x10")?;
                 writeln!(self.out, "    cmp     x10, 0")?;
                 writeln!(self.out, "    b.eq    {}", false_label)?;
 
@@ -265,7 +280,7 @@ impl<'a, W: Write> Generator<'a, W> {
                 Ok(())
             },
             _ => {
-                self.write_expression(rhs, current_func, "x10")?;
+                self.write_expression(rhs, scope, current_func, "x10")?;
                 self.c(&format!("binop: {} {} {}", lhs, op, rhs), true)?;
 
                 match op {
@@ -309,7 +324,7 @@ impl<'a, W: Write> Generator<'a, W> {
         }
     }
 
-    fn write_funcall(&mut self, name: &str, args: &[Expr], current_func: &Function, target_reg: &str) -> io::Result<()> {
+    fn write_funcall(&mut self, name: &str, args: &[Expr], scope: &mut Vec<Variable>, current_func: &Function, target_reg: &str) -> io::Result<()> {
         match name {
             "exit" => self.use_exit = true,
             "puts" => self.use_puts = true,
@@ -325,7 +340,7 @@ impl<'a, W: Write> Generator<'a, W> {
             self.c(&format!("load args for {}", name), true)?;
             for (i, arg) in args.iter().enumerate() {
                 let reg = format!("x{}", i);
-                self.write_expression(arg, current_func, &reg)?;
+                self.write_expression(arg, scope, current_func, &reg)?;
             }
         }
 
@@ -343,8 +358,8 @@ impl<'a, W: Write> Generator<'a, W> {
         Ok(())
     }
 
-    fn write_variable(&mut self, name: &str, current_func: &Function, target_reg: &str) -> io::Result<()> {
-        let pos = parser::get_variable_position(name, current_func);
+    fn write_variable(&mut self, name: &str, scope: &Vec<Variable>, target_reg: &str) -> io::Result<()> {
+        let pos = get_variable_position(name, &scope.clone());
         self.c(&format!("var: {}", name), true)?;
         writeln!(self.out, "    ldr     {}, [x29, {}]", target_reg, 16 + 8 * pos)
     }
@@ -459,3 +474,10 @@ fn stack_size(offset: usize) -> usize {
 }
 
 // TODO: Variables, defined in non-global scope are inaccessible
+
+fn get_variable_position(name: &str, scope: &Vec<Variable>) -> usize {
+    match scope.iter().position(|p| p.name == name) {
+        Some(pos) => pos,
+        None => diag::fatal!("variable '{}' not found in current scope", name),
+    }
+}

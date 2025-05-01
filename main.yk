@@ -1,5 +1,18 @@
 include "std/std.yk";
 
 fn main() int64 {
+    let i: int64 = -1;
+    while i <= 1 {
+        puts("i = ");
+        putiln(i);
+
+        let j: int64 = -1;
+        while j <= 1 {
+            puts("j = ");
+            putiln(j);
+            j = j + 1;
+        }
+        i = i + 1;
+    }
     ret 0;
 }
