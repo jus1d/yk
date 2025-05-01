@@ -473,8 +473,6 @@ fn stack_size(offset: usize) -> usize {
     stack_size
 }
 
-// TODO: Variables, defined in non-global scope are inaccessible
-
 fn get_variable_position(name: &str, scope: &Vec<Variable>) -> usize {
     match scope.iter().position(|p| p.name == name) {
         Some(pos) => pos,
