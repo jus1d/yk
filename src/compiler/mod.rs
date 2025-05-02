@@ -5,6 +5,7 @@ use crate::opts::Opts;
 use crate::parser::Ast;
 
 use std::fs::File;
+use std::io::Write;
 use std::path::Path;
 use std::time::Instant;
 
@@ -38,23 +39,29 @@ fn compile_aarch64_darwin(opts: &Opts, ast: &Ast) {
     };
 
     let assembly_path = format!("{}.s", filebase);
-    let out = match File::create(&assembly_path) {
+
+    let start = Instant::now();
+    let mut g = aarch64::Generator::new(ast, opts.emit_comments);
+    g.generate().unwrap_or_else(|err| {
+        diag::fatal!("cannot generate assembly: {}", err)
+    });
+
+    let mut out = match File::create(&assembly_path) {
         Ok(file) => file,
         Err(err) => diag::fatal!("failed to open file `{}`: {}", &assembly_path, err),
     };
 
-    let start = Instant::now();
-    let mut g = aarch64::Generator::new(ast, out, opts.emit_comments);
-    match g.generate() {
-        Err(err) => diag::fatal!("cannot generate assembly: {}", err),
+    let bytes = g.into_bytes();
+    match out.write_all(&bytes) {
+        Err(err) => diag::fatal!("cannot write assembly: {}", err),
         Ok(_) => {
             let elapsed = start.elapsed();
             if !opts.silent {
+                println!("INFO: Wrote {} bytes of assembly", bytes.len());
                 println!("INFO: Assembly generation took {:.2?}", elapsed);
             }
         },
     }
-
 
     let start = Instant::now();
     let object_path = format!("{}.o", filebase);

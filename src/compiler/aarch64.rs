@@ -4,8 +4,8 @@ use crate::parser::{Ast, BinaryOp, Expr, Function, Literal, Statement, Variable}
 use std::io::{self, Write};
 use std::process::{Command, Output};
 
-pub struct Generator<'a, W: Write> {
-    out: W,
+pub struct Generator<'a> {
+    out: Vec<u8>,
     ast: &'a Ast,
     strings: Vec<String>,
     label_counter: usize,
@@ -15,10 +15,10 @@ pub struct Generator<'a, W: Write> {
     use_puti: bool,
 }
 
-impl<'a, W: Write> Generator<'a, W> {
-    pub fn new(ast: &'a Ast, out: W, emit_comments: bool) -> Self {
+impl<'a> Generator<'a> {
+    pub fn new(ast: &'a Ast, emit_comments: bool) -> Self {
         Self {
-            out,
+            out: Vec::new(),
             ast,
             strings: Vec::new(),
             label_counter: 0,
@@ -27,6 +27,14 @@ impl<'a, W: Write> Generator<'a, W> {
             use_puts: false,
             use_puti: false,
         }
+    }
+
+    pub fn into_assembly(self) -> io::Result<String> {
+        String::from_utf8(self.out).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
+    }
+
+    pub fn into_bytes(self) -> Vec<u8> {
+        self.out
     }
 
     fn label(&mut self) -> String {
