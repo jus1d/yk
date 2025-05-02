@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 
 use crate::diag;
+use crate::lexer::Loc;
 use crate::parser::{Ast, BinaryOp, Expr, Literal, Statement};
 
 pub fn precompute_expressions(ast: &mut Ast) {
@@ -59,7 +60,7 @@ fn mark_unused_functions_statement(statement: &Statement, used_funcs: &mut HashS
                 mark_unused_functions_statement(statement, used_funcs);
             }
         },
-        Statement::Funcall { name, args } => {
+        Statement::Funcall { name, args, loc: _ } => {
             used_funcs.insert(name.clone());
             for expr in args {
                 mark_unused_functions_expression(expr, used_funcs);
@@ -78,18 +79,18 @@ fn mark_unused_functions_statement(statement: &Statement, used_funcs: &mut HashS
 
 fn mark_unused_functions_expression(expr: &Expr, used_funcs: &mut HashSet<String>) {
     match expr {
-        Expr::Literal(_) => { },
-        Expr::Binary { op: _, lhs, rhs } => {
+        Expr::Literal { .. } => { },
+        Expr::Binary { lhs, rhs, .. } => {
             mark_unused_functions_expression(lhs, used_funcs);
             mark_unused_functions_expression(rhs, used_funcs);
         },
-        Expr::Funcall { name, args } => {
+        Expr::Funcall { name, args, .. } => {
             used_funcs.insert(name.clone());
             for expr in args {
                 mark_unused_functions_expression(expr, used_funcs);
             }
         },
-        Expr::Variable(_) => { },
+        Expr::Variable { .. } => { },
     }
 }
 
@@ -136,7 +137,7 @@ fn precompute_statement(statement: &mut Statement) {
 }
 
 fn precompute_expr(expr: &mut Expr) {
-    if let Expr::Binary { op, lhs, rhs } = expr {
+    if let Expr::Binary { op, lhs, rhs, loc } = expr {
         precompute_expr(lhs);
         precompute_expr(rhs);
 
@@ -144,8 +145,8 @@ fn precompute_expr(expr: &mut Expr) {
             return;
         }
 
-        if let (Expr::Literal(_), Expr::Literal(_)) = (lhs.as_ref(), rhs.as_ref()) {
-            *expr = evaluate_integer(op, lhs, rhs);
+        if let (Expr::Literal { .. }, Expr::Literal { .. }) = (lhs.as_ref(), rhs.as_ref()) {
+            *expr = evaluate_integer(op, lhs, rhs, loc);
         }
     }
 }
@@ -154,7 +155,7 @@ fn is_precomputable(op: &BinaryOp) -> bool {
     matches!(op, BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Div)
 }
 
-fn evaluate_integer(op: &BinaryOp, lhs: &Expr, rhs: &Expr) -> Expr {
+fn evaluate_integer(op: &BinaryOp, lhs: &Expr, rhs: &Expr, loc: &Loc) -> Expr {
     match (get_integer_value(lhs), get_integer_value(rhs)) {
         (Some(l), Some(r)) => {
             let value = match op {
@@ -164,18 +165,19 @@ fn evaluate_integer(op: &BinaryOp, lhs: &Expr, rhs: &Expr) -> Expr {
                 BinaryOp::Div => l / r,
                 _ => unreachable!(),
             };
-            Expr::Literal(Literal::Number(value))
+            Expr::Literal { lit: Literal::Number(value), loc: loc.clone() }
         }
         _ => Expr::Binary {
             op: op.clone(),
             lhs: Box::new(lhs.clone()),
             rhs: Box::new(rhs.clone()),
+            loc: loc.clone(),
         },
     }
 }
 
 fn get_integer_value(expr: &Expr) -> Option<i64> {
-    if let Expr::Literal(Literal::Number(value)) = expr {
+    if let Expr::Literal { lit: Literal::Number(value), .. } = expr {
         Some(*value)
     } else {
         None

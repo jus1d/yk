@@ -188,7 +188,7 @@ impl<'a> Generator<'a> {
                 writeln!(self.out, "    b       {}", start_label)?;
                 writeln!(self.out, "{}:", end_label)?;
             },
-            Statement::Funcall { name, args } => {
+            Statement::Funcall { name, args, loc: _ } => {
                 self.write_funcall(name, args, scope, current_func, "x0")?;
             },
             Statement::Declaration { name, typ, value } => {
@@ -211,10 +211,10 @@ impl<'a> Generator<'a> {
 
     fn write_expression(&mut self, expr: &Expr, scope: &mut Vec<Variable>, current_func: &Function, target_reg: &str) -> io::Result<()> {
         match expr {
-            Expr::Literal(lit) => self.write_literal(lit, target_reg),
-            Expr::Binary { op, lhs, rhs } => self.write_binop(op, lhs, rhs, scope, current_func, target_reg),
-            Expr::Funcall { name, args } => self.write_funcall(name, args, scope, current_func, target_reg),
-            Expr::Variable(name) => self.write_variable(name, scope, target_reg),
+            Expr::Literal { lit, .. } => self.write_literal(lit, target_reg),
+            Expr::Binary { op, lhs, rhs, .. } => self.write_binop(op, lhs, rhs, scope, current_func, target_reg),
+            Expr::Funcall { name, args, .. } => self.write_funcall(name, args, scope, current_func, target_reg),
+            Expr::Variable { name, .. } => self.write_variable(name, scope, target_reg),
         }
     }
 
@@ -481,7 +481,8 @@ fn stack_size(offset: usize) -> usize {
 fn get_variable_position(name: &str, scope: &Vec<Variable>) -> usize {
     match scope.iter().position(|p| p.name == name) {
         Some(pos) => pos,
-        None => diag::fatal!("variable '{}' not found in current scope", name),
+        None => unreachable!(),
+        // None => diag::fatal!("variable '{}' not found in current scope", name),
     }
 }
 

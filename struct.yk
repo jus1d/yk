@@ -1,0 +1,17 @@
+// This code is example for implementing struct literals.
+// It isn't working yet.
+
+struct Point {
+    x: int64,
+    y: int64,
+}
+
+fn main() int64 {
+    let p: Point = Point {
+        x: 69,
+        y: 420,
+    };
+
+    puti(p.x);
+    ret p.y;
+}

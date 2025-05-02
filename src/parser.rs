@@ -1,4 +1,4 @@
-use crate::lexer::{self, Token, TokenKind};
+use crate::lexer::{self, Loc, Token, TokenKind};
 use crate::diag;
 
 use std::collections::HashMap;
@@ -51,7 +51,8 @@ pub enum Type {
 pub enum Statement {
     Funcall {
         name: String,
-        args: Vec<Expr>
+        args: Vec<Expr>,
+        loc: Loc,
     },
     If {
         branches: Vec<Branch>,
@@ -84,17 +85,36 @@ pub enum Literal {
 
 #[derive(Clone)]
 pub enum Expr {
-    Variable(String),
-    Literal(Literal),
+    Variable {
+        name: String,
+        loc: Loc,
+    },
+    Literal {
+        lit: Literal,
+        loc: Loc,
+    },
     Funcall {
         name: String,
         args: Vec<Expr>,
+        loc: Loc,
     },
     Binary {
         op: BinaryOp,
         lhs: Box<Expr>,
         rhs: Box<Expr>,
+        loc: Loc,
     },
+}
+
+impl Expr {
+    pub fn loc(self) -> Loc {
+        match self {
+            Expr::Variable { loc, .. } => loc,
+            Expr::Literal { loc, .. } => loc,
+            Expr::Funcall { loc, .. } => loc,
+            Expr::Binary { loc, .. } => loc,
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -129,30 +149,30 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                             ast.functions.insert(func.name.clone(), func);
                         },
                         "include" => {
-                            let include_path = if let Some(path) = self.tokens.next() {
-                                if path.kind != TokenKind::String {
-                                    diag::fatal!("expected include string, got token kind {}", path.kind);
-                                }
-                                path.text
-                            }
-                            else {
-                                diag::fatal!(token.loc, "expected include string, got EOF");
+                            let include_path_token = match self.tokens.next() {
+                                Some(token) => token,
+                                None => diag::fatal!(token.loc, "expected include string, got EOF"),
                             };
 
+                            if include_path_token.kind != TokenKind::String {
+                                diag::fatal!(include_path_token.loc, "expected `string` as include path, got token kind {}", include_path_token.kind);
+                            }
+
+                            let include_path = include_path_token.text;
                             if let Some(ext) = Path::new(&include_path).extension().and_then(|ext| ext.to_str()) {
                                 if ext != "yk" {
-                                    diag::fatal!("included file '{}' has wrong extension: `{}`, expected `yk`", include_path, ext);
+                                    diag::fatal!(include_path_token.loc, "included file '{}' has wrong extension: `{}`, expected `yk`", include_path, ext);
                                 }
                             }
                             else {
-                                diag::fatal!("included file '{}' has wrong extension", include_path);
+                                diag::fatal!(include_path_token.loc, "included file '{}' has wrong extension", include_path);
                             }
 
                             let source = if include_path.starts_with("https://") {
-                                read_source_via_https(&include_path)
+                                read_source_via_https(&include_path, include_path_token.loc)
                             } else {
                                 fs::read_to_string(&include_path).unwrap_or_else(|_| {
-                                    diag::fatal!("included file '{}' not found", include_path);
+                                    diag::fatal!(include_path_token.loc, "included file '{}' not found", include_path);
                                 })
                             };
 
@@ -185,10 +205,11 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
         match self.tokens.peek() {
             Some(token) => match token.kind {
                 TokenKind::Word => {
-                    let typ = token.text.clone();
-                    if !is_type(&typ) {
-                        diag::fatal!(token.loc, "unknown type `{}`", typ);
-                    }
+                    let typ_str = token.text.clone();
+                    let typ = match get_primitive_type(&typ_str) {
+                        Some(typ) => typ,
+                        None => diag::fatal!(token.loc, "unknown type `{}`", typ_str),
+                    };
 
                     self.tokens.next();
                     if let Some(token) = self.tokens.next() {
@@ -197,7 +218,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                         }
 
                         return Some(Variable {
-                            typ: get_primitive_type(&typ),
+                            typ,
                             name: token.text,
                         });
                     }
@@ -247,15 +268,16 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                     };
                 }
                 TokenKind::Word | TokenKind::Exclamation => {
-                    let ret_type = self.tokens.next().unwrap();
-                    if !is_type(&ret_type.text) {
-                        diag::fatal!(ret_type.loc, "unknown return type `{}`", ret_type.text);
-                    }
+                    let return_type_token = self.tokens.next().unwrap();
+                    let return_type = match get_primitive_type(&return_type_token.text) {
+                        Some(typ) => typ,
+                        None => diag::fatal!(return_type_token.loc, "unknown return type `{}`", return_type_token.text),
+                    };
 
                     let body = self.parse_block();
                     return Function {
                         name: name.text,
-                        ret_type: get_primitive_type(&ret_type.text),
+                        ret_type: return_type,
                         params,
                         body,
                     };
@@ -307,57 +329,60 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
 
         let mut lhs = self.parse_primary_expr();
 
-        while let Some(token) = self.tokens.peek() {
-            let op = match token.kind {
-                TokenKind::Plus => Some(BinaryOp::Add),
-                TokenKind::Minus => Some(BinaryOp::Sub),
-                TokenKind::Star => Some(BinaryOp::Mul),
-                TokenKind::Slash => Some(BinaryOp::Div),
-                TokenKind::EqualEqual => Some(BinaryOp::EQ),
-                TokenKind::NotEqual => Some(BinaryOp::NE),
-                TokenKind::Greater => Some(BinaryOp::GT),
-                TokenKind::Less => Some(BinaryOp::LT),
-                TokenKind::GreaterEqual => Some(BinaryOp::GE),
-                TokenKind::LessEqual => Some(BinaryOp::LE),
-                TokenKind::Percent => Some(BinaryOp::Mod),
-                TokenKind::DoublePipe => Some(BinaryOp::LogicalOr),
-                TokenKind::DoubleAmpersand => Some(BinaryOp::LogicalAnd),
-                _ => None,
+        loop {
+            // Get the operator without holding a reference to self.tokens
+            let op = match self.tokens.peek() {
+                Some(token) => match token.kind {
+                    TokenKind::Plus => BinaryOp::Add,
+                    TokenKind::Minus => BinaryOp::Sub,
+                    TokenKind::Star => BinaryOp::Mul,
+                    TokenKind::Slash => BinaryOp::Div,
+                    TokenKind::EqualEqual => BinaryOp::EQ,
+                    TokenKind::NotEqual => BinaryOp::NE,
+                    TokenKind::Greater => BinaryOp::GT,
+                    TokenKind::Less => BinaryOp::LT,
+                    TokenKind::GreaterEqual => BinaryOp::GE,
+                    TokenKind::LessEqual => BinaryOp::LE,
+                    TokenKind::Percent => BinaryOp::Mod,
+                    TokenKind::DoublePipe => BinaryOp::LogicalOr,
+                    TokenKind::DoubleAmpersand => BinaryOp::LogicalAnd,
+                    _ => break,
+                },
+                None => break,
             };
 
-            if let Some(op) = op {
-                let prec = get_op_precedence(&op);
-                if prec < min_prec {
-                    break;
-                }
-
-                self.tokens.next();
-                let rhs = self.parse_expr_prec(prec + 1);
-                lhs = Expr::Binary {
-                    op,
-                    lhs: Box::new(lhs),
-                    rhs: Box::new(rhs),
-                };
-            } else {
+            let prec = get_op_precedence(&op);
+            if prec < min_prec {
                 break;
             }
+
+            // Consume the operator token
+            let token = self.tokens.next().unwrap();
+
+            let rhs = self.parse_expr_prec(prec + 1);
+            lhs = Expr::Binary {
+                op,
+                lhs: Box::new(lhs),
+                rhs: Box::new(rhs),
+                loc: token.loc.clone(),
+            };
         }
 
-        return lhs;
+        lhs
     }
 
     fn parse_primary_expr(&mut self) -> Expr {
         if let Some(token) = self.tokens.next() {
             match token.kind {
-                TokenKind::Number => return Expr::Literal(Literal::Number(token.number)),
-                TokenKind::String => return Expr::Literal(Literal::String(token.text)),
+                TokenKind::Number => return Expr::Literal { lit: Literal::Number(token.number), loc: token.loc },
+                TokenKind::String => return Expr::Literal { lit: Literal::String(token.text), loc: token.loc },
                 // Negative integer
                 TokenKind::Minus => {
                     match self.tokens.next() {
                         None => diag::fatal!(token.loc, "expected expression, found EOF"),
-                        Some(token) => {
-                            match token.kind {
-                                TokenKind::Number => return Expr::Literal(Literal::Number(-token.number)),
+                        Some(number_token) => {
+                            match number_token.kind {
+                                TokenKind::Number => return Expr::Literal { lit: Literal::Number(-number_token.number), loc: token.loc },
                                 _ => diag::fatal!(token.loc, "expected integer after `-`, got `{}`", token.kind),
                             }
                         }
@@ -379,17 +404,18 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                         return Expr::Funcall {
                             name: token.text,
                             args,
+                            loc: token.loc,
                         };
                     }
 
                     // Boolean literals
                     match token.text.as_str() {
-                        "true" => return Expr::Literal(Literal::Bool(true)),
-                        "false" => return Expr::Literal(Literal::Bool(false)),
+                        "true" => return Expr::Literal { lit: Literal::Bool(true), loc: token.loc },
+                        "false" => return Expr::Literal { lit: Literal::Bool(false), loc: token.loc },
                         _ => {},
                     }
 
-                    return Expr::Variable(token.text);
+                    return Expr::Variable { name: token.text, loc: token.loc };
                 }
                 TokenKind::OpenParen => {
                     let expr = self.parse_expression();
@@ -479,16 +505,19 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
 
                         let typ = match self.tokens.next() {
                             Some(token) => {
-                                if token.kind == TokenKind::Word && is_type(&token.text) {
-                                    get_primitive_type(&token.text)
-                                } else {
-                                    diag::fatal!(token.loc, "expected type, got `{}`", token.text);
+                                match get_primitive_type(&token.text) {
+                                    Some(typ) => typ,
+                                    None => diag::fatal!(token.loc, "expected type, got `{}`", token.text),
                                 }
                             },
                             None => {
                                 diag::fatal!("expected type, got EOF");
                             }
                         };
+
+                        if typ == Type::Never {
+                            diag::fatal!("cannot declare variable with `{}` type", typ);
+                        }
 
                         if self.tokens.next_if(|token| token.kind == TokenKind::Semicolon).is_some() {
                             return Statement::Declaration { name, typ, value: None };
@@ -504,6 +533,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                     },
                     _ => {
                         let name = token.text.clone();
+                        let funcall_loc = token.loc.clone();
 
                         if self.tokens.next_if(|token| token.kind == TokenKind::Equals).is_some() {
                             // Assignment
@@ -529,15 +559,10 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                             }
                         }
 
-                        if self.tokens.next_if(|t| t.kind == TokenKind::CloseParen).is_none() {
-                            diag::fatal!("expected {} after arguments", TokenKind::CloseParen);
-                        }
+                        self.expect(TokenKind::CloseParen);
+                        self.expect(TokenKind::Semicolon);
 
-                        if self.tokens.next_if(|t| t.kind == TokenKind::Semicolon).is_none() {
-                            diag::fatal!("expected {} after function call", TokenKind::Semicolon);
-                        }
-
-                        return Statement::Funcall { name, args };
+                        return Statement::Funcall { name, args, loc: funcall_loc };
                     }
                 },
                 _ => diag::fatal!(token.loc, "expected statement, got {}\nonly `ret` and `funcall` statements are supported yet", token.kind),
@@ -558,14 +583,6 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
     }
 }
 
-fn is_type(s: &str) -> bool {
-    match s {
-        // NOTE: ! is a never type
-        "int64" | "string" | "void" | "bool" | "!" => return true,
-        _ => return false,
-    }
-}
-
 fn get_op_precedence(op: &BinaryOp) -> u8 {
     match op {
         BinaryOp::LogicalOr | BinaryOp::LogicalAnd => 1,
@@ -576,37 +593,37 @@ fn get_op_precedence(op: &BinaryOp) -> u8 {
     }
 }
 
-pub fn get_variable_position(name: &str, func: &Function) -> usize {
-    match func.params.iter().position(|p| p.name == name) {
-        Some(pos) => return pos,
-        None => {
-            let mut pos = func.params.len();
-            for statement in &func.body {
-                if let Statement::Declaration { name: declared, .. } = statement {
-                    pos += 1;
-                    if name == declared {
-                        return pos;
-                    }
-                }
-            }
+// pub fn get_variable_position(name: &str, loc: Loc, func: &Function) -> usize {
+//     match func.params.iter().position(|p| p.name == name) {
+//         Some(pos) => return pos,
+//         None => {
+//             let mut pos = func.params.len();
+//             for statement in &func.body {
+//                 if let Statement::Declaration { name: declared, .. } = statement {
+//                     pos += 1;
+//                     if name == declared {
+//                         return pos;
+//                     }
+//                 }
+//             }
 
-            diag::fatal!("variable `{}` not found in current scope", name);
-        }
-    }
-}
+//             diag::fatal!(loc, "variable `{}` not found in current scope", name);
+//         }
+//     }
+// }
 
-fn read_source_via_https(url: &str) -> String {
+fn read_source_via_https(url: &str, include_loc: Loc) -> String {
     let output = match Command::new("curl").arg("-s").arg("-S").arg("-L").arg("-f").arg(url).output() {
         Ok(out) => out,
-        Err(err) => diag::fatal!("can't get source via HTTPS: {}", err)
+        Err(err) => diag::fatal!(include_loc, "can't get source via HTTPS: {}", err)
     };
 
     if !output.status.success() {
-        diag::fatal!("can't include via HTTPS: {}", url);
+        diag::fatal!(include_loc, "can't include via HTTPS: {}", url);
     }
 
     let source = String::from_utf8(output.stdout).unwrap_or_else(|err| {
-        diag::fatal!("can't read source from response: {}", err);
+        diag::fatal!(include_loc, "can't read source from response: {}", err);
     });
 
     source
@@ -615,9 +632,9 @@ fn read_source_via_https(url: &str) -> String {
 impl fmt::Display for Expr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Expr::Variable(ident) => write!(f, "{}", ident),
-            Expr::Literal(lit) => write!(f, "{}", lit),
-            Expr::Funcall { name, args } => {
+            Expr::Variable { name, .. } => write!(f, "{}", name),
+            Expr::Literal { lit, .. } => write!(f, "{}", lit),
+            Expr::Funcall { name, args, .. } => {
                 write!(f, "{}(", name)?;
                 for (i, arg) in args.iter().enumerate() {
                     if i > 0 {
@@ -627,7 +644,7 @@ impl fmt::Display for Expr {
                 }
                 write!(f, ")")
             }
-            Expr::Binary { op, lhs, rhs } => {
+            Expr::Binary { op, lhs, rhs, .. } => {
                 write!(f, "({} {} {})", lhs, op, rhs)
             }
         }
@@ -677,14 +694,14 @@ impl fmt::Display for Type {
     }
 }
 
-pub fn get_primitive_type(typ: &str) -> Type {
+pub fn get_primitive_type(typ: &str) -> Option<Type> {
     match typ {
-        "void" => Type::Void,
-        "string" => Type::String,
-        "int64" => Type::Int64,
-        "bool" => Type::Bool,
-        "!" => Type::Never,
-        _ => diag::fatal!("unknown type: {}", typ)
+        "void" => Some(Type::Void),
+        "string" => Some(Type::String),
+        "int64" => Some(Type::Int64),
+        "bool" => Some(Type::Bool),
+        "!" => Some(Type::Never),
+        _ => None,
     }
 }
 

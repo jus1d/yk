@@ -16,6 +16,7 @@ fn main() int64 {
                 puts("buzz\n");
             } else {
                 puti(counter);
+                puts("\n");
             }
         }
     }
