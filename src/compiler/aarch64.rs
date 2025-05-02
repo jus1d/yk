@@ -1,7 +1,7 @@
-use std::io::{self, Write};
-
 use crate::diag;
 use crate::parser::{Ast, BinaryOp, Expr, Function, Literal, Statement, Variable};
+
+use std::io::{self, Write};
 
 pub struct Generator<'a, W: Write> {
     out: W,
@@ -117,7 +117,7 @@ impl<'a, W: Write> Generator<'a, W> {
                 if let Some(expr) = value {
                     self.write_expression(expr, scope, current_func, "x0")?;
                 }
-                self.write_func_epilogue(current_func.params.len() + declarations_count)
+                self.write_func_epilogue(current_func.params.len() + declarations_count)?;
             }
             Statement::If { branches, otherwise } => {
                 let mut labels: Vec<String> = vec![];
@@ -155,7 +155,6 @@ impl<'a, W: Write> Generator<'a, W> {
                 *scope = saved_scope.clone();
                 writeln!(self.out, "{}:", label_end)?;
 
-                Ok(())
             },
             Statement::While { condition, block } => {
                 let start_label = self.label();
@@ -179,30 +178,26 @@ impl<'a, W: Write> Generator<'a, W> {
                 *scope = saved_scope.clone();
                 writeln!(self.out, "    b       {}", start_label)?;
                 writeln!(self.out, "{}:", end_label)?;
-                Ok(())
             },
             Statement::Funcall { name, args } => {
                 self.write_funcall(name, args, scope, current_func, "x0")?;
-                Ok(())
             },
             Statement::Declaration { name, typ, value } => {
                 scope.push(Variable { name: name.clone(), typ: typ.clone() });
                 if let Some(expr) = value {
                     self.write_expression(expr, scope, current_func, "x8")?;
-                    // HERE
                     self.c(&format!("declaration: {} = {}", name, expr), true)?;
                     writeln!(self.out, "    str     x8, [x29, {}]", 16 + get_variable_position(name, scope) * 8)?;
                 }
                 // Nothing to do, if value is empty. Variable will just allocated on the stack.
-                Ok(())
             },
             Statement::Assignment { name, value } => {
                 self.write_expression(value, scope, current_func, "x8")?;
                 self.c(&format!("assignment: {} = {}", name, value), true)?;
                 writeln!(self.out, "    str     x8, [x29, {}]", 16 + get_variable_position(name, scope) * 8)?;
-                Ok(())
             }
         }
+        Ok(())
     }
 
     fn write_expression(&mut self, expr: &Expr, scope: &mut Vec<Variable>, current_func: &Function, target_reg: &str) -> io::Result<()> {
@@ -215,24 +210,25 @@ impl<'a, W: Write> Generator<'a, W> {
     }
 
     fn write_literal(&mut self, lit: &Literal, target_reg: &str) -> io::Result<()> {
-        match lit {
+        match *lit {
             Literal::Number(n) => {
+                // TODO: it's allowed to load immediate value only up to 2^16
                 self.c(&format!("number: {}", n), true)?;
-                writeln!(self.out, "    mov     {}, {}", target_reg, n)
+                writeln!(self.out, "    mov     {}, {}", target_reg, n)?;
             },
-            Literal::String(text) => {
+            Literal::String(ref text) => {
                 let idx = self.strings.len();
                 self.strings.push(text.clone());
                 self.c(&format!("string: \"{}\"", text.replace("\n", "\\n")), true)?;
                 writeln!(self.out, "    adrp    {}, string.{}@PAGE", target_reg, idx)?;
-                writeln!(self.out, "    add     {}, {}, string.{}@PAGEOFF", target_reg, target_reg, idx)
+                writeln!(self.out, "    add     {}, {}, string.{}@PAGEOFF", target_reg, target_reg, idx)?;
             },
             Literal::Bool(value) => {
                 self.c(&format!("bool: {}", value), true)?;
-                writeln!(self.out, "    mov     {}, {}", target_reg, *value as i8)?;
-                Ok(())
+                writeln!(self.out, "    mov     {}, {}", target_reg, value as i8)?;
             }
         }
+        Ok(())
     }
 
     fn write_binop(&mut self, op: &BinaryOp, lhs: &Expr, rhs: &Expr, scope: &mut Vec<Variable>, current_func: &Function, target_reg: &str) -> io::Result<()> {

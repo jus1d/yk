@@ -1,5 +1,6 @@
 pub mod aarch64;
 
+use crate::diag;
 use crate::parser::Ast;
 
 use std::io;
@@ -17,7 +18,11 @@ impl Compiler {
     }
 
     pub fn compile<W: Write>(&self, out: &mut W, emit_comments: bool) -> io::Result<()> {
-        let mut g = aarch64::Generator::new(&self.ast, out, emit_comments);
+        let mut g = if cfg![target_arch = "aarch64"] {
+            aarch64::Generator::new(&self.ast, out, emit_comments)
+        } else {
+            diag::fatal!("unsupported architecture. only `aarch64` available now");
+        };
         g.generate()?;
         Ok(())
     }
