@@ -24,7 +24,7 @@ fn eliminate_unused_functions(ast: &mut Ast) {
     used_funcs.insert(String::from("main"));
 
     for statement in &main.body {
-        mark_unused_functions_statement(statement, &mut used_funcs);
+        mark_unused_functions_statement(ast, statement, &mut used_funcs);
     }
 
     for (name, _) in &ast.functions.clone() {
@@ -34,66 +34,76 @@ fn eliminate_unused_functions(ast: &mut Ast) {
     }
 }
 
-fn mark_unused_functions_statement(statement: &Statement, used_funcs: &mut HashSet<String>) {
+fn mark_unused_functions_statement(ast: &Ast, statement: &Statement, used_funcs: &mut HashSet<String>) {
     match statement {
         Statement::Ret { value } => {
             if let Some(expr) = value {
-                mark_unused_functions_expression(expr, used_funcs);
+                mark_unused_functions_expression(ast, expr, used_funcs);
             }
         }
         Statement::If { branches, otherwise } => {
             for branch in branches {
-                mark_unused_functions_expression(&branch.condition, used_funcs);
+                mark_unused_functions_expression(ast, &branch.condition, used_funcs);
                 for mut statement in &branch.block {
-                    mark_unused_functions_statement(&mut statement, used_funcs);
+                    mark_unused_functions_statement(ast, &mut statement, used_funcs);
                 }
             }
             for statement in otherwise {
-                mark_unused_functions_statement(statement, used_funcs);
+                mark_unused_functions_statement(ast, statement, used_funcs);
             }
         },
         Statement::While { condition, block } => {
             if let Some(expr) = condition {
-                mark_unused_functions_expression(expr, used_funcs);
+                mark_unused_functions_expression(ast, expr, used_funcs);
             }
             for statement in block {
-                mark_unused_functions_statement(statement, used_funcs);
+                mark_unused_functions_statement(ast, statement, used_funcs);
             }
         },
         Statement::Funcall { name, args, loc: _ } => {
             used_funcs.insert(name.clone());
+            if let Some(func) = ast.functions.get(name) {
+                for statement in &func.body {
+                    mark_unused_functions_statement(ast, statement, used_funcs);
+                }
+            }
             for expr in args {
-                mark_unused_functions_expression(expr, used_funcs);
+                mark_unused_functions_expression(ast, expr, used_funcs);
             }
         },
         Statement::Declaration { name: _, typ: _, value } => {
             if let Some(expr) = value {
-                mark_unused_functions_expression(expr, used_funcs);
+                mark_unused_functions_expression(ast, expr, used_funcs);
             }
         },
         Statement::Assignment { name: _, value } => {
-            mark_unused_functions_expression(value, used_funcs);
+            mark_unused_functions_expression(ast, value, used_funcs);
         }
     }
 }
 
-fn mark_unused_functions_expression(expr: &Expr, used_funcs: &mut HashSet<String>) {
+fn mark_unused_functions_expression(ast: &Ast, expr: &Expr, used_funcs: &mut HashSet<String>) {
     match expr {
         Expr::Literal { .. } => { },
         Expr::Binary { lhs, rhs, .. } => {
-            mark_unused_functions_expression(lhs, used_funcs);
-            mark_unused_functions_expression(rhs, used_funcs);
+            mark_unused_functions_expression(ast, lhs, used_funcs);
+            mark_unused_functions_expression(ast, rhs, used_funcs);
         },
         Expr::Funcall { name, args, .. } => {
             used_funcs.insert(name.clone());
+            if let Some(func) = ast.functions.get(name) {
+                for statement in &func.body {
+                    mark_unused_functions_statement(ast, statement, used_funcs);
+                }
+            }
             for expr in args {
-                mark_unused_functions_expression(expr, used_funcs);
+                mark_unused_functions_expression(ast, expr, used_funcs);
             }
         },
         Expr::Variable { .. } => { },
         Expr::Index { collection, index, .. } => {
-            mark_unused_functions_expression(collection, used_funcs);
-            mark_unused_functions_expression(index, used_funcs);
+            mark_unused_functions_expression(ast, collection, used_funcs);
+            mark_unused_functions_expression(ast, index, used_funcs);
         }
     }
 }

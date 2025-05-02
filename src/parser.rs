@@ -13,12 +13,12 @@ pub const KEYWORDS: &[&'static str] = &[
     "true", "false",
 ];
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Ast {
     pub functions: HashMap<String, Function>
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Function {
     pub name: String,
     pub ret_type: Type,
@@ -26,19 +26,19 @@ pub struct Function {
     pub body: Vec<Statement>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Variable {
     pub name: String,
     pub typ: Type,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Branch {
     pub condition: Expr,
     pub block: Vec<Statement>,
 }
 
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq, Debug)]
 pub enum Type {
     Never,
     Void,
@@ -48,7 +48,7 @@ pub enum Type {
     Char,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Statement {
     Funcall {
         name: String,
@@ -77,14 +77,14 @@ pub enum Statement {
     },
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Literal {
     Number(i64),
     String(String),
     Bool(bool),
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Expr {
     Variable {
         name: String,
@@ -124,7 +124,7 @@ impl Expr {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum BinaryOp {
     Add, Sub, Mul, Div, Mod,
     EQ, NE, GT, LT, GE, LE,

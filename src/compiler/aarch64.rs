@@ -535,7 +535,6 @@ fn get_variable_position(name: &str, scope: &Vec<Variable>) -> usize {
     match scope.iter().position(|p| p.name == name) {
         Some(pos) => pos,
         None => unreachable!(),
-
     }
 }
 
@@ -562,5 +561,24 @@ fn execute_command(verbose: bool, program: &str, args: &[&str]) -> Result<Output
     if verbose {
         println!("[CMD]: {} {}", program, args.join(" "));
     }
-    Command::new(program).args(args).output()
+
+    let output = Command::new(program).args(args).output();
+
+    match output {
+        Ok(ref out) if !out.status.success() => {
+            eprintln!("ERROR: command failed with status: {}", out.status);
+            if !out.stdout.is_empty() {
+                eprintln!("{}", String::from_utf8_lossy(&out.stdout));
+            }
+            if !out.stderr.is_empty() {
+                eprintln!("{}", String::from_utf8_lossy(&out.stderr));
+            }
+        },
+        Err(ref err) => {
+            eprintln!("ERROR: failed to execute command: {}", err);
+        },
+        _ => {}
+    }
+
+    output
 }

@@ -15,6 +15,25 @@ fn nth(string s, int64 index) char {
     ret s[index];
 }
 
+// streq: checks if two strings are equal or not
+fn streq(string s1, string s2) bool {
+    let n1: int64 = strlen(s1);
+    let n2: int64 = strlen(s2);
+    if n1 != n2 {
+        ret false;
+    }
+
+    let i: int64 = 0;
+    while i < n1 {
+        if nth(s1, i) != nth(s2, i) {
+            ret false;
+        }
+        i = i + 1;
+    }
+
+    ret true;
+}
+
 // putsln: prints a string with terminating new line to stdout
 fn putsln(string s) {
     puts(s);
