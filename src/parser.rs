@@ -21,21 +21,30 @@ pub struct Ast {
 #[derive(Clone)]
 pub struct Function {
     pub name: String,
-    pub ret_type: String,
+    pub ret_type: Type,
     pub params: Vec<Variable>,
     pub body: Vec<Statement>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Variable {
     pub name: String,
-    pub typ: String,
+    pub typ: Type,
 }
 
 #[derive(Clone)]
 pub struct Branch {
     pub condition: Expr,
     pub block: Vec<Statement>,
+}
+
+#[derive(Clone, Eq, PartialEq)]
+pub enum Type {
+    Never,
+    Void,
+    Int64,
+    String,
+    Bool,
 }
 
 #[derive(Clone)]
@@ -54,7 +63,7 @@ pub enum Statement {
     },
     Declaration {
         name: String,
-        typ: String,
+        typ: Type,
         value: Option<Expr>,
     },
     Assignment {
@@ -107,7 +116,9 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
     }
 
     pub fn parse_ast(&mut self) -> Ast {
-        let mut ast = Ast { functions: HashMap::new() };
+        let mut ast = Ast {
+            functions: HashMap::new(),
+        };
 
         while let Some(token) = self.tokens.next() {
             match token.kind {
@@ -186,7 +197,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                         }
 
                         return Some(Variable {
-                            typ,
+                            typ: get_primitive_type(&typ),
                             name: token.text,
                         });
                     }
@@ -230,7 +241,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
 
                     return Function {
                         name: name.text,
-                        ret_type: "void".to_string(),
+                        ret_type: Type::Void,
                         params,
                         body,
                     };
@@ -244,7 +255,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                     let body = self.parse_block();
                     return Function {
                         name: name.text,
-                        ret_type: ret_type.text,
+                        ret_type: get_primitive_type(&ret_type.text),
                         params,
                         body,
                     };
@@ -469,7 +480,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                         let typ = match self.tokens.next() {
                             Some(token) => {
                                 if token.kind == TokenKind::Word && is_type(&token.text) {
-                                    token.text
+                                    get_primitive_type(&token.text)
                                 } else {
                                     diag::fatal!(token.loc, "expected type, got `{}`", token.text);
                                 }
@@ -651,6 +662,29 @@ impl fmt::Display for Literal {
             Literal::String(content) => write!(f, "\"{}\"", content.replace("\n", "\\n")),
             Literal::Bool(value) => write!(f, "{}", value),
         }
+    }
+}
+
+impl fmt::Display for Type {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", match self {
+            Type::Never => "!",
+            Type::Void => "void",
+            Type::Int64 => "int64",
+            Type::String => "string",
+            Type::Bool => "bool",
+        })
+    }
+}
+
+pub fn get_primitive_type(typ: &str) -> Type {
+    match typ {
+        "void" => Type::Void,
+        "string" => Type::String,
+        "int64" => Type::Int64,
+        "bool" => Type::Bool,
+        "!" => Type::Never,
+        _ => diag::fatal!("unknown type: {}", typ)
     }
 }
 

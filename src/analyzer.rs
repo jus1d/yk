@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::parser::{Ast, BinaryOp, Expr, Function, Literal, Statement, Variable, KEYWORDS};
+use crate::parser::{Ast, BinaryOp, Expr, Function, Literal, Statement, Type, Variable, KEYWORDS};
 use crate::diag;
 
 pub fn analyze(ast: &Ast) {
@@ -12,28 +12,28 @@ fn typecheck(ast: &Ast) {
     let builtin_funcs = HashMap::from([
         ("puts", Function {
             name: String::from("puts"),
-            ret_type: String::from("void"),
+            ret_type: Type::Void,
             params: vec![Variable {
                 name: String::from("str"),
-                typ: String::from("string"),
+                typ: Type::String,
             }],
             body: vec![],
         }),
         ("puti", Function {
             name: String::from("puti"),
-            ret_type: String::from("void"),
+            ret_type: Type::Void,
             params: vec![Variable {
                 name: String::from("val"),
-                typ: String::from("int64"),
+                typ: Type::Int64,
             }],
             body: vec![],
         }),
         ("exit", Function {
             name: String::from("exit"),
-            ret_type: String::from("never"),
+            ret_type: Type::Never,
             params: vec![Variable {
                 name: String::from("code"),
-                typ: String::from("int64"),
+                typ: Type::Int64,
             }],
             body: vec![],
         }),
@@ -64,21 +64,22 @@ fn typecheck_statement(ast: &Ast, func: &Function, statement: &Statement, vars: 
             typecheck_funcall(ast, name, args, vars, &builtin_funcs, &ast.functions);
         },
         Statement::Ret { value } => {
-            if let Some(expr) = value {
+            if let Some(value) = value {
                 let expected_type = &func.ret_type;
-                let actual_type = &get_expr_type(ast, expr, vars);
+                let actual_type = &get_expr_type(ast, value, vars);
                 if actual_type != expected_type {
                     diag::fatal!("mismatched type of return expression. expected `{}`, but got `{}`", expected_type, actual_type);
                 }
 
-                typecheck_expr(ast, expr, vars, builtin_funcs, &ast.functions);
+                typecheck_expr(ast, value, vars, builtin_funcs, &ast.functions);
             }
         },
         Statement::If { branches, otherwise } => {
             for branch in branches {
-                let condition_type = get_expr_type(ast, &branch.condition, vars);
-                if condition_type != "bool" {
-                    diag::fatal!("expected a `bool` condition, got `{}`", condition_type);
+                let actual_type = get_expr_type(ast, &branch.condition, vars);
+                let expected_type = Type::Bool;
+                if actual_type != expected_type {
+                    diag::fatal!("expected a `{}` condition, got `{}`", expected_type, actual_type);
                 }
 
                 for statement in &branch.block {
@@ -91,15 +92,16 @@ fn typecheck_statement(ast: &Ast, func: &Function, statement: &Statement, vars: 
             }
         },
         Statement::While { condition, block } => {
-            if let Some(expr) = condition {
-                let condition_type = get_expr_type(ast, expr, vars);
-                if condition_type != "bool" {
-                    diag::fatal!("expected a `bool` condition, got `{}`", condition_type);
+            if let Some(condition) = condition {
+                let actual_type = get_expr_type(ast, condition, vars);
+                let expected_type = Type::Bool;
+                if actual_type != expected_type {
+                    diag::fatal!("expected a `{}` condition, got `{}`", expected_type, actual_type);
                 }
             }
 
-            for s in block {
-                typecheck_statement(ast, func, s, vars, builtin_funcs);
+            for statement in block {
+                typecheck_statement(ast, func, statement, vars, builtin_funcs);
             }
         },
         Statement::Declaration { name, typ, value } => {
@@ -107,10 +109,11 @@ fn typecheck_statement(ast: &Ast, func: &Function, statement: &Statement, vars: 
                 diag::fatal!("variable name collides with reserved keyword `{}`", name);
             }
 
-            if let Some(expr) = value {
-                let value_type = get_expr_type(ast, expr, vars);
-                if value_type != *typ {
-                    diag::fatal!("expected expression of type `{}`, but got `{}`", typ, value_type);
+            if let Some(value) = value {
+                let actual_type = get_expr_type(ast, value, vars);
+                let expected_type = typ.clone();
+                if actual_type != expected_type {
+                    diag::fatal!("expected expression of type `{}`, but got `{}`", expected_type, actual_type);
                 }
             }
 
@@ -120,10 +123,11 @@ fn typecheck_statement(ast: &Ast, func: &Function, statement: &Statement, vars: 
             });
         },
         Statement::Assignment { name, value } => {
-            let value_type = get_expr_type(ast, value, vars);
+            let actual_type = get_expr_type(ast, value, vars);
             if let Some(variable) = vars.iter().find(|var| var.name == *name) {
-                if variable.typ != value_type {
-                    diag::fatal!("assignment to `{}` expected type `{}`, but got `{}`", name, variable.typ, value_type);
+                let expected_type = variable.typ.clone();
+                if actual_type != expected_type {
+                    diag::fatal!("assignment to `{}`: expected type `{}`, but got `{}`", name, expected_type, actual_type);
                 }
             }
             else {
@@ -138,10 +142,10 @@ fn typecheck_binop(ast: &Ast, op: &BinaryOp, lhs: &Expr, rhs: &Expr, vars: &Vec<
     let rhs_type = get_expr_type(ast, rhs, vars);
     match op {
         BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Div | BinaryOp::Mod => {
-            if lhs_type != "int64" {
+            if lhs_type != Type::Int64 {
                 diag::fatal!("binary operations only supported for type `int64`");
             }
-            if rhs_type != "int64" {
+            if rhs_type != Type::Int64 {
                 diag::fatal!("binary operations only supported for type `int64`");
             }
         },
@@ -149,18 +153,18 @@ fn typecheck_binop(ast: &Ast, op: &BinaryOp, lhs: &Expr, rhs: &Expr, vars: &Vec<
             if lhs_type != rhs_type {
                 diag::fatal!("operands of different types. lhs: `{}`, rhs: `{}`", lhs_type, rhs_type);
             }
-            if lhs_type != "int64" && lhs_type != "bool" {
+            if lhs_type != Type::Int64 && lhs_type != Type::Bool {
                 diag::fatal!("operands of different types. logical operations can be applied only for `int64` or `bool`");
             }
-            if rhs_type != "int64" && rhs_type != "bool" {
+            if rhs_type != Type::Int64 && rhs_type != Type::Bool {
                 diag::fatal!("operands of different types. logical operations can be applied only for `int64` or `bool`");
             }
         },
         BinaryOp::LogicalOr | BinaryOp::LogicalAnd => {
-            if lhs_type != "bool" {
+            if lhs_type != Type::Bool {
                 diag::fatal!("logical operations only supported between booleans");
             }
-            if rhs_type != "bool" {
+            if rhs_type != Type::Bool {
                 diag::fatal!("logical operations only supported between booleans");
             }
         }
@@ -177,13 +181,7 @@ fn typecheck_expr(ast: &Ast, expr: &Expr, vars: &Vec<Variable>, builtin_funcs: &
             typecheck_funcall(ast, name, args, vars, builtin_funcs, user_funcs);
         }
         Expr::Variable(name) => {
-            let mut found = false;
-            for var in vars {
-                if var.name == *name {
-                    found = true;
-                }
-            }
-            if !found {
+            if vars.iter().find(|var| var.name == *name).is_none() {
                 diag::fatal!("variable `{}` not found in this scope", name);
             }
         }
@@ -196,7 +194,7 @@ fn typecheck_funcall(ast: &Ast, name: &str, args: &[Expr], vars: &Vec<Variable>,
     } else if let Some(func) = user_funcs.get(name) {
         func
     } else {
-        diag::fatal!("call to undeclared function `{name}`");
+        diag::fatal!("call to undeclared function `{}`", name);
     };
 
     check_arguments_count(name, args.len(), func.params.len());
@@ -215,14 +213,11 @@ fn typecheck_funcall(ast: &Ast, name: &str, args: &[Expr], vars: &Vec<Variable>,
 }
 
 fn check_arguments_count(func_name: &str, actual: usize, expected: usize) {
-    match actual.cmp(&expected) {
-        std::cmp::Ordering::Greater => {
-            diag::fatal!("too many arguments to function call `{func_name}`, expected {expected} arguments, have {actual}");
-        }
-        std::cmp::Ordering::Less => {
-            diag::fatal!("too few arguments to function call `{func_name}`, expected {expected} arguments, have {actual}");
-        }
-        std::cmp::Ordering::Equal => {}
+    if actual < expected {
+        diag::fatal!("too few arguments to function call `{}`, expected {}, got {}", func_name, expected, actual);
+    }
+    else if actual > expected {
+        diag::fatal!("too many arguments to function call `{}`, expected {}, got {}", func_name, expected, actual);
     }
 }
 
@@ -231,33 +226,38 @@ fn check_entrypoint_declaration(ast: &Ast) {
         diag::fatal!("entry point not declared. expected: `fn main() int64`");
     }
 
-    let func = ast.functions.get("main").unwrap();
-    if func.params.len() > 0 {
-        diag::fatal!("function `main` should not have parameters");
+    match ast.functions.get("main") {
+        None => diag::fatal!("entry point not declared. expected: `fn main() int64`"),
+        Some(func) => {
+            if func.params.len() > 0 {
+                diag::fatal!("function `main` should not have parameters");
+            }
+            if func.ret_type != Type::Int64 {
+                diag::fatal!("unexpected main function declaration, expected `fn main() int64`");
+            }
+        },
     }
-    if func.ret_type.as_str() != "int64" {
-        diag::fatal!("unexpected main function declaration, expected `fn main() int64`");
-    }
+
 }
 
-fn get_binop_type(op: &BinaryOp) -> String {
+fn get_binop_type(op: &BinaryOp) -> Type {
     match op {
         BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Div | BinaryOp::Mod => {
-            return String::from("int64");
+            return Type::Int64;
         },
         BinaryOp::LogicalOr | BinaryOp::LogicalAnd | BinaryOp::EQ | BinaryOp::NE |
         BinaryOp::GT | BinaryOp::LT | BinaryOp::LE | BinaryOp::GE => {
-            return String::from("bool");
+            return Type::Int64;
         },
     }
 }
 
-fn get_expr_type(ast: &Ast, expr: &Expr, vars: &Vec<Variable>) -> String {
+fn get_expr_type(ast: &Ast, expr: &Expr, vars: &Vec<Variable>) -> Type {
     match expr {
         Expr::Literal(literal) => match literal {
-            Literal::Number(_) => return String::from("int64"),
-            Literal::String(_) => return String::from("string"),
-            Literal::Bool(_) => return String::from("bool"),
+            Literal::Number(_) => return Type::Int64,
+            Literal::String(_) => return Type::String,
+            Literal::Bool(_) => return Type::Bool,
         },
         Expr::Binary { op, lhs: _, rhs: _ } => {
             return get_binop_type(op);
