@@ -3,18 +3,17 @@ YKC_FLAGS := --emit-comments --opt
 
 EXAMPLES_DIR := examples
 SRCS := $(wildcard $(EXAMPLES_DIR)/*.yk)
-BINS := $(SRCS:$(EXAMPLES_DIR)/%.yk=%)
+EXAMPLES := $(SRCS:$(EXAMPLES_DIR)/%.yk=%)
 
 ykc: src/*.rs
 	cargo build --release
 	cp ./target/release/ykc ykc
 
-$(BINS): %: $(EXAMPLES_DIR)/%.yk
+examples: $(EXAMPLES)
+
+$(EXAMPLES): %: $(EXAMPLES_DIR)/%.yk
 	$(YKC) $(YKC_FLAGS) $<
 
-all: $(BINS)
+all: ykc examples
 
-clean:
-	rm -f $(BINS)
-
-.PHONY: all clean
+.PHONY: all examples
