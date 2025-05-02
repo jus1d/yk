@@ -1,19 +1,20 @@
-main: main.o
-	ld -o main main.o -lSystem -syslibroot `xcrun --show-sdk-path` -e _main -arch arm64
+YKC := cargo run --quiet --release --
+YKC_FLAGS := --emit-comments --opt
 
-main.o: main.s
-	as -arch arm64 -o main.o main.s
-
-main.s: main.yk ykc
-	./ykc --emit-comments --opt -o main.s ./main.yk
+EXAMPLES_DIR := examples
+SRCS := $(wildcard $(EXAMPLES_DIR)/*.yk)
+BINS := $(SRCS:$(EXAMPLES_DIR)/%.yk=%)
 
 ykc: src/*.rs
 	cargo build --release
 	cp ./target/release/ykc ykc
 
-all: examples/hello main
+$(BINS): %: $(EXAMPLES_DIR)/%.yk
+	$(YKC) $(YKC_FLAGS) $<
+
+all: $(BINS)
 
 clean:
-	rm main main.o main.s examples/hello examples/hello.o examples/hello.s
+	rm -f $(BINS)
 
 .PHONY: all clean

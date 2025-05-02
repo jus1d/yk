@@ -3,7 +3,7 @@ fn hang() bool {
     ret true;
 }
 
-fn zero() int64 {
+fn zero() bool {
     ret false;
 }
 
