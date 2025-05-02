@@ -6,6 +6,7 @@ use crate::parser::Ast;
 
 use std::fs::File;
 use std::path::Path;
+use std::time::Instant;
 
 pub struct Compiler {
     ast: Ast,
@@ -42,14 +43,26 @@ fn compile_aarch64_darwin(opts: &Opts, ast: &Ast) {
         Err(err) => diag::fatal!("failed to open file `{}`: {}", &assembly_path, err),
     };
 
+    let start = Instant::now();
     let mut g = aarch64::Generator::new(ast, out, opts.emit_comments);
     match g.generate() {
         Err(err) => diag::fatal!("cannot generate assembly: {}", err),
-        Ok(_) => {},
+        Ok(_) => {
+            let elapsed = start.elapsed();
+            if !opts.silent {
+                println!("INFO: Assembly generation took {:.2?}", elapsed);
+            }
+        },
     }
 
-    let object_path = format!("{}.o", filebase);
-    aarch64::generate_object_from_assembly(&assembly_path, &object_path);
 
-    aarch64::link_object_file(&object_path, &filebase);
+    let start = Instant::now();
+    let object_path = format!("{}.o", filebase);
+    aarch64::generate_object_from_assembly(!opts.silent, &assembly_path, &object_path);
+
+    aarch64::link_object_file(!opts.silent, &object_path, &filebase);
+    let elapsed = start.elapsed();
+    if !opts.silent {
+        println!("INFO: Generating object and linking took {:.2?}", elapsed);
+    }
 }

@@ -7,6 +7,7 @@ macro_rules! usage {
         println!("Usage: {} [OPTIONS] <filename>", $program);
         println!("  OPTIONS:");
         println!("    -o <output>           Specify output path");
+        println!("    --silent, -s          Do not print any logs of compilation");
         println!("    --emit-comments       Emit comments to assembly");
         println!("    --unsafe              Disable analyzing and typechecking");
         println!("    --opt                 Enable compiler optimizations");
@@ -23,6 +24,7 @@ pub struct Opts {
     pub input_path: String,
     pub output_path: String,
     pub disable_analyzing: bool,
+    pub silent: bool,
     pub emit_comments: bool,
     pub enable_optimization: bool,
 }
@@ -34,6 +36,7 @@ impl Opts {
             input_path: String::new(),
             output_path: String::new(),
             disable_analyzing: false,
+            silent: false,
             emit_comments: false,
             enable_optimization: false,
         };
@@ -60,6 +63,9 @@ impl Opts {
                 },
                 "--opt" => {
                     opts.enable_optimization = true;
+                },
+                "-s" | "--silent" => {
+                    opts.silent = true;
                 },
                 "-h" | "--help" => {
                     usage!(opts.program_name);
