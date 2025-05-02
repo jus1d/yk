@@ -15,8 +15,17 @@ fn typecheck(ast: &Ast) {
             name: String::from("puts"),
             ret_type: Type::Void,
             params: vec![Variable {
-                name: String::from("str"),
+                name: String::from("s"),
                 typ: Type::String,
+            }],
+            body: vec![],
+        }),
+        (String::from("putc"), Function {
+            name: String::from("putc"),
+            ret_type: Type::Void,
+            params: vec![Variable {
+                name: String::from("ch"),
+                typ: Type::Char,
             }],
             body: vec![],
         }),
@@ -35,6 +44,15 @@ fn typecheck(ast: &Ast) {
             params: vec![Variable {
                 name: String::from("code"),
                 typ: Type::Int64,
+            }],
+            body: vec![],
+        }),
+        (String::from("strlen"), Function {
+            name: String::from("strlen"),
+            ret_type: Type::Int64,
+            params: vec![Variable {
+                name: String::from("s"),
+                typ: Type::String,
             }],
             body: vec![],
         }),
@@ -182,7 +200,19 @@ fn typecheck_expr(ast: &Ast, expr: &Expr, vars: &Vec<Variable>, builtin_funcs: &
             if vars.iter().find(|var| var.name == *name).is_none() {
                 diag::fatal!(loc, "variable `{}` not found in this scope", name);
             }
-        }
+        },
+        Expr::Index { collection, index, loc } => {
+            let collection_type = get_expr_type(ast, collection, vars, builtin_funcs);
+            if collection_type != Type::String {
+                diag::fatal!(loc, "only strings are accesible by index, got `{}`", collection_type)
+            }
+
+            let actual_index_type = get_expr_type(ast, index, vars, builtin_funcs);
+            let expected_index_type = Type::Int64;
+            if actual_index_type != Type::Int64 {
+                diag::fatal!(loc, "expected expression of type `{}` as an index, got `{}`", expected_index_type, actual_index_type);
+            }
+        },
     }
 }
 
@@ -274,6 +304,10 @@ fn get_expr_type(ast: &Ast, expr: &Expr, vars: &Vec<Variable>, builtin_funcs: &H
             }
 
             diag::fatal!(loc, "variable `{}` not found in this scope", name);
+        },
+        Expr::Index { .. } => {
+            // NOTE: Assume that only strings are indexable for now. Typechecking is in typecheck_expr()
+            return Type::Char;
         },
     }
 }

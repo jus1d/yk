@@ -45,6 +45,7 @@ pub enum Type {
     Int64,
     String,
     Bool,
+    Char,
 }
 
 #[derive(Clone)]
@@ -104,6 +105,11 @@ pub enum Expr {
         rhs: Box<Expr>,
         loc: Loc,
     },
+    Index {
+        collection: Box<Expr>,
+        index: Box<Expr>,
+        loc: Loc,
+    },
 }
 
 impl Expr {
@@ -113,6 +119,7 @@ impl Expr {
             Expr::Literal { loc, .. } => loc,
             Expr::Funcall { loc, .. } => loc,
             Expr::Binary { loc, .. } => loc,
+            Expr::Index { loc, .. } => loc,
         }
     }
 }
@@ -327,10 +334,15 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
             diag::fatal!("expected expression, got EOF");
         }
 
-        let mut lhs = self.parse_primary_expr();
+        let mut primary = self.parse_primary_expr();
+        if let Some(_) = self.tokens.next_if(|token| token.kind == TokenKind::OpenBracket) {
+            let index = self.parse_primary_expr();
+            self.expect(TokenKind::CloseBracket);
+
+            primary = Expr::Index { collection: Box::new(primary.clone()), index: Box::new(index), loc: primary.loc() }
+        }
 
         loop {
-            // Get the operator without holding a reference to self.tokens
             let op = match self.tokens.peek() {
                 Some(token) => match token.kind {
                     TokenKind::Plus => BinaryOp::Add,
@@ -356,19 +368,18 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                 break;
             }
 
-            // Consume the operator token
             let token = self.tokens.next().unwrap();
 
             let rhs = self.parse_expr_prec(prec + 1);
-            lhs = Expr::Binary {
+            primary = Expr::Binary {
                 op,
-                lhs: Box::new(lhs),
+                lhs: Box::new(primary),
                 rhs: Box::new(rhs),
                 loc: token.loc.clone(),
             };
         }
 
-        lhs
+        primary
     }
 
     fn parse_primary_expr(&mut self) -> Expr {
@@ -593,25 +604,6 @@ fn get_op_precedence(op: &BinaryOp) -> u8 {
     }
 }
 
-// pub fn get_variable_position(name: &str, loc: Loc, func: &Function) -> usize {
-//     match func.params.iter().position(|p| p.name == name) {
-//         Some(pos) => return pos,
-//         None => {
-//             let mut pos = func.params.len();
-//             for statement in &func.body {
-//                 if let Statement::Declaration { name: declared, .. } = statement {
-//                     pos += 1;
-//                     if name == declared {
-//                         return pos;
-//                     }
-//                 }
-//             }
-
-//             diag::fatal!(loc, "variable `{}` not found in current scope", name);
-//         }
-//     }
-// }
-
 fn read_source_via_https(url: &str, include_loc: Loc) -> String {
     let output = match Command::new("curl").arg("-s").arg("-S").arg("-L").arg("-f").arg(url).output() {
         Ok(out) => out,
@@ -646,7 +638,10 @@ impl fmt::Display for Expr {
             }
             Expr::Binary { op, lhs, rhs, .. } => {
                 write!(f, "({} {} {})", lhs, op, rhs)
-            }
+            },
+            Expr::Index { collection, index, .. } => {
+                write!(f, "{}[{}]", collection, index)
+            },
         }
     }
 }
@@ -690,6 +685,7 @@ impl fmt::Display for Type {
             Type::Int64 => "int64",
             Type::String => "string",
             Type::Bool => "bool",
+            Type::Char => "char",
         })
     }
 }
@@ -700,6 +696,7 @@ pub fn get_primitive_type(typ: &str) -> Option<Type> {
         "string" => Some(Type::String),
         "int64" => Some(Type::Int64),
         "bool" => Some(Type::Bool),
+        "char" => Some(Type::Char),
         "!" => Some(Type::Never),
         _ => None,
     }

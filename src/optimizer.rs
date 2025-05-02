@@ -91,6 +91,10 @@ fn mark_unused_functions_expression(expr: &Expr, used_funcs: &mut HashSet<String
             }
         },
         Expr::Variable { .. } => { },
+        Expr::Index { collection, index, .. } => {
+            mark_unused_functions_expression(collection, used_funcs);
+            mark_unused_functions_expression(index, used_funcs);
+        }
     }
 }
 

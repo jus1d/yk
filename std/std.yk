@@ -1,3 +1,20 @@
+// TODO: introduce `fputs` to print into `stderr`
+// panic: prints an error message and exits with non-zero exit code
+fn panic(string message)! {
+    puts("panic: ");
+    putsln(message);
+    exit(1);
+}
+
+// nth: relatively safely gets a character from string by index
+fn nth(string s, int64 index) char {
+    if index < 0 || index >= strlen(s) {
+        panic("index out of range");
+    }
+
+    ret s[index];
+}
+
 // putsln: prints a string with terminating new line to stdout
 fn putsln(string s) {
     puts(s);
