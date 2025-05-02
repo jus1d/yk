@@ -20,90 +20,104 @@ fn eliminate_unused_functions(ast: &mut Ast) {
         None => diag::fatal!("no `main` function found"),
     };
 
-    let mut used_funcs: HashSet<String> = HashSet::new();
+    let mut used_funcs = HashSet::new();
+    let mut visited = HashSet::new();
     used_funcs.insert(String::from("main"));
 
     for statement in &main.body {
-        mark_unused_functions_statement(ast, statement, &mut used_funcs);
+        mark_unused_functions_statement(ast, statement, &mut used_funcs, &mut visited);
     }
 
-    for (name, _) in &ast.functions.clone() {
-        if !used_funcs.contains(name) {
-            ast.functions.remove(name);
-        }
+    let to_remove: Vec<_> = ast.functions.keys()
+        .filter(|name| !used_funcs.contains(*name))
+        .cloned()
+        .collect();
+
+    for name in to_remove {
+        ast.functions.remove(&name);
     }
 }
 
-fn mark_unused_functions_statement(ast: &Ast, statement: &Statement, used_funcs: &mut HashSet<String>) {
+fn mark_unused_functions_statement(ast: &Ast, statement: &Statement, used_funcs: &mut HashSet<String>, visited: &mut HashSet<String>) {
     match statement {
         Statement::Ret { value } => {
             if let Some(expr) = value {
-                mark_unused_functions_expression(ast, expr, used_funcs);
+                mark_unused_functions_expression(ast, expr, used_funcs, visited);
             }
         }
         Statement::If { branches, otherwise } => {
             for branch in branches {
-                mark_unused_functions_expression(ast, &branch.condition, used_funcs);
+                mark_unused_functions_expression(ast, &branch.condition, used_funcs, visited);
                 for mut statement in &branch.block {
-                    mark_unused_functions_statement(ast, &mut statement, used_funcs);
+                    mark_unused_functions_statement(ast, &mut statement, used_funcs, visited);
                 }
             }
             for statement in otherwise {
-                mark_unused_functions_statement(ast, statement, used_funcs);
+                mark_unused_functions_statement(ast, statement, used_funcs, visited);
             }
         },
         Statement::While { condition, block } => {
             if let Some(expr) = condition {
-                mark_unused_functions_expression(ast, expr, used_funcs);
+                mark_unused_functions_expression(ast, expr, used_funcs, visited);
             }
             for statement in block {
-                mark_unused_functions_statement(ast, statement, used_funcs);
+                mark_unused_functions_statement(ast, statement, used_funcs, visited);
             }
         },
         Statement::Funcall { name, args, loc: _ } => {
             used_funcs.insert(name.clone());
-            if let Some(func) = ast.functions.get(name) {
-                for statement in &func.body {
-                    mark_unused_functions_statement(ast, statement, used_funcs);
+
+            if !visited.contains(name) {
+                visited.insert(name.clone());
+                if let Some(func) = ast.functions.get(name) {
+                    for statement in &func.body {
+                        mark_unused_functions_statement(ast, statement, used_funcs, visited);
+                    }
                 }
             }
+
             for expr in args {
-                mark_unused_functions_expression(ast, expr, used_funcs);
+                mark_unused_functions_expression(ast, expr, used_funcs, visited);
             }
         },
         Statement::Declaration { name: _, typ: _, value } => {
             if let Some(expr) = value {
-                mark_unused_functions_expression(ast, expr, used_funcs);
+                mark_unused_functions_expression(ast, expr, used_funcs, visited);
             }
         },
         Statement::Assignment { name: _, value } => {
-            mark_unused_functions_expression(ast, value, used_funcs);
+            mark_unused_functions_expression(ast, value, used_funcs, visited);
         }
     }
 }
 
-fn mark_unused_functions_expression(ast: &Ast, expr: &Expr, used_funcs: &mut HashSet<String>) {
+fn mark_unused_functions_expression(ast: &Ast, expr: &Expr, used_funcs: &mut HashSet<String>, visited: &mut HashSet<String>) {
     match expr {
         Expr::Literal { .. } => { },
         Expr::Binary { lhs, rhs, .. } => {
-            mark_unused_functions_expression(ast, lhs, used_funcs);
-            mark_unused_functions_expression(ast, rhs, used_funcs);
+            mark_unused_functions_expression(ast, lhs, used_funcs, visited);
+            mark_unused_functions_expression(ast, rhs, used_funcs, visited);
         },
         Expr::Funcall { name, args, .. } => {
             used_funcs.insert(name.clone());
-            if let Some(func) = ast.functions.get(name) {
-                for statement in &func.body {
-                    mark_unused_functions_statement(ast, statement, used_funcs);
+
+            if !visited.contains(name) {
+                visited.insert(name.clone());
+                if let Some(func) = ast.functions.get(name) {
+                    for statement in &func.body {
+                        mark_unused_functions_statement(ast, statement, used_funcs, visited);
+                    }
                 }
             }
+
             for expr in args {
-                mark_unused_functions_expression(ast, expr, used_funcs);
+                mark_unused_functions_expression(ast, expr, used_funcs, visited);
             }
         },
         Expr::Variable { .. } => { },
         Expr::Index { collection, index, .. } => {
-            mark_unused_functions_expression(ast, collection, used_funcs);
-            mark_unused_functions_expression(ast, index, used_funcs);
+            mark_unused_functions_expression(ast, collection, used_funcs, visited);
+            mark_unused_functions_expression(ast, index, used_funcs, visited);
         }
     }
 }

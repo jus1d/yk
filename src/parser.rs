@@ -82,6 +82,7 @@ pub enum Literal {
     Number(i64),
     String(String),
     Bool(bool),
+    Char(char),
 }
 
 #[derive(Clone, Debug)]
@@ -387,6 +388,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
             match token.kind {
                 TokenKind::Number => return Expr::Literal { lit: Literal::Number(token.number), loc: token.loc },
                 TokenKind::String => return Expr::Literal { lit: Literal::String(token.text), loc: token.loc },
+                TokenKind::Char => return Expr::Literal { lit: Literal::Char(token.text.chars().nth(0).unwrap()), loc: token.loc },
                 // Negative integer
                 TokenKind::Minus => {
                     match self.tokens.next() {
@@ -673,6 +675,7 @@ impl fmt::Display for Literal {
             Literal::Number(value) => write!(f, "{}", value),
             Literal::String(content) => write!(f, "\"{}\"", content.replace("\n", "\\n")),
             Literal::Bool(value) => write!(f, "{}", value),
+            Literal::Char(ch) => write!(f, "{}", ch),
         }
     }
 }

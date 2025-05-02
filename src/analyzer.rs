@@ -162,10 +162,10 @@ fn typecheck_binop(ast: &Ast, op: &BinaryOp, lhs: &Expr, rhs: &Expr, loc: &Loc, 
     match op {
         BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Div | BinaryOp::Mod => {
             if lhs_type != Type::Int64 {
-                diag::fatal!(loc, "binary operations only supported for type `int64`");
+                diag::fatal!(loc, "binary operation `{}` only supported for type `int64`", op);
             }
             if rhs_type != Type::Int64 {
-                diag::fatal!(loc, "binary operations only supported for type `int64`");
+                diag::fatal!(loc, "binary operation `{}` only supported for type `int64`", op);
             }
         },
         BinaryOp::EQ | BinaryOp::NE | BinaryOp::GT | BinaryOp::LT | BinaryOp::LE | BinaryOp::GE => {
@@ -227,16 +227,17 @@ fn typecheck_funcall(ast: &Ast, name: &str, args: &[Expr], loc: &Loc, vars: &Vec
 
     check_arguments_count(name, loc, args.len(), func.params.len());
 
-    for i in 0..func.params.len() {
-        let expected_type = &func.params[i].typ;
-        let actual_type = &get_expr_type(ast, &args[i], vars, builtin_funcs);
-        if expected_type != actual_type {
-            diag::fatal!("mismatched arguments types. expected `{}`, but got `{}`", expected_type, actual_type);
-        }
-    }
-
     for arg in args {
         typecheck_expr(ast, arg, vars, builtin_funcs, user_funcs);
+    }
+
+    for i in 0..func.params.len() {
+        let arg = &args[i];
+        let expected_type = &func.params[i].typ;
+        let actual_type = &get_expr_type(ast, arg, vars, builtin_funcs);
+        if expected_type != actual_type {
+            diag::fatal!(arg.clone().loc(), "mismatched arguments types. expected `{}`, but got `{}`", expected_type, actual_type);
+        }
     }
 }
 
@@ -281,6 +282,7 @@ fn get_expr_type(ast: &Ast, expr: &Expr, vars: &Vec<Variable>, builtin_funcs: &H
             Literal::Number(_) => return Type::Int64,
             Literal::String(_) => return Type::String,
             Literal::Bool(_) => return Type::Bool,
+            Literal::Char(_) => return Type::Char,
         },
         Expr::Binary { op, .. } => {
             return get_binop_type(op);

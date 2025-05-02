@@ -9,6 +9,7 @@ pub enum TokenKind {
     Word,
     Number,
     String,
+    Char,
 
     OpenParen,
     CloseParen,
@@ -51,6 +52,7 @@ impl fmt::Display for TokenKind {
                 TokenKind::Word => "`word`",
                 TokenKind::Number => "`number`",
                 TokenKind::String => "`string`",
+                TokenKind::Char => "`char`",
                 TokenKind::OpenParen => "`(`",
                 TokenKind::CloseParen => "`)`",
                 TokenKind::OpenCurly => "`{`",
@@ -207,6 +209,23 @@ impl<Chars: Iterator<Item = char> + Clone> Iterator for Lexer<Chars> {
             }
 
             diag::fatal!(loc, "unclosed string literal");
+        }
+
+        if ch == '\'' {
+            match self.chars.next() {
+                Some(ch) => match ch {
+                    '\'' => diag::fatal!(loc, "empty character literal"),
+                    '\\' => diag::fatal!(loc, "escaping character literals is not supported yet"),
+                    _ => text.push(ch),
+                },
+                None => diag::fatal!(loc, "unclosed character literal"),
+            }
+
+            if let Some(_) = self.chars.next_if(|ch| *ch == '\'') {
+                return Some(Token::with_text(TokenKind::Char, &text, loc))
+            } else {
+                diag::fatal!(loc, "expected terminating `'` for character literal")
+            }
         }
 
         text.push(ch);

@@ -1,13 +1,18 @@
 include "std/std.yk";
 
-fn main() int64 {
-    let s1: string = "HELLO";
-    let s2: string = "HELLO";
-
-    if streq(s1, s2) {
-        puts("EQ");
-    } else {
-        puts("NOT EQ");
+fn fib(int64 x) int64 {
+    if x == 0 {
+        ret 0;
+    } else if x == 1 {
+        ret 1;
     }
+
+    ret fib(x-1) + fib(x-2);
+}
+
+fn main() int64 {
+    let fibn: int64 = fib(11);
+
+    putiln(fibn);
     ret 0;
 }
