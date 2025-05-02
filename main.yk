@@ -1,18 +1,8 @@
 include "std/std.yk";
 
-fn fib(int64 x) int64 {
-    if x == 0 {
-        ret 0;
-    } else if x == 1 {
-        ret 1;
-    }
-
-    ret fib(x-1) + fib(x-2);
-}
-
 fn main() int64 {
-    let fibn: int64 = fib(11);
+    let ch: char = 's';
 
-    putiln(fibn);
+    putc(ch);
     ret 0;
 }

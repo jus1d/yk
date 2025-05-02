@@ -190,42 +190,8 @@ impl<Chars: Iterator<Item = char> + Clone> Iterator for Lexer<Chars> {
         let ch = self.chars.next().unwrap();
         self.cur += 1;
 
-        if ch == '"' {
-            while let Some(ch) = self.chars.next() {
-                self.cur += 1;
-                match ch {
-                    '\\' => {
-                        self.cur += 1;
-                        if let Some(ch) = self.chars.next() {
-                            match ch {
-                                'n' => text.push('\n'),
-                                _ => diag::fatal!(loc, "only escaping new lines supported yet")
-                            }
-                        }
-                    },
-                    '"' => return Some(Token::with_text(TokenKind::String, &text, loc)),
-                    _ => text.push(ch),
-                }
-            }
-
-            diag::fatal!(loc, "unclosed string literal");
-        }
-
-        if ch == '\'' {
-            match self.chars.next() {
-                Some(ch) => match ch {
-                    '\'' => diag::fatal!(loc, "empty character literal"),
-                    '\\' => diag::fatal!(loc, "escaping character literals is not supported yet"),
-                    _ => text.push(ch),
-                },
-                None => diag::fatal!(loc, "unclosed character literal"),
-            }
-
-            if let Some(_) = self.chars.next_if(|ch| *ch == '\'') {
-                return Some(Token::with_text(TokenKind::Char, &text, loc))
-            } else {
-                diag::fatal!(loc, "expected terminating `'` for character literal")
-            }
+        if ch == '\'' || ch == '"' {
+            return self.parse_string_or_char(ch, loc);
         }
 
         text.push(ch);
@@ -304,5 +270,56 @@ impl<Chars: Iterator<Item = char> + Clone> Iterator for Lexer<Chars> {
             },
             _ => diag::fatal!(loc, "unexpected character `{}`", ch),
         }
+    }
+}
+
+impl<Chars: Iterator<Item = char> + Clone> Lexer<Chars> {
+    fn parse_string_or_char(&mut self, quote_char: char, loc: Loc) -> Option<Token> {
+        self.cur += 1;
+        let mut text = String::new();
+        let is_char = quote_char == '\'';
+
+        while let Some(ch) = self.chars.next() {
+            self.cur += 1;
+
+            if ch == '\\' {
+                // Handle escape sequences
+                self.cur += 1;
+                if let Some(escaped_ch) = self.chars.next() {
+                    match escaped_ch {
+                        'n' => text.push('\n'),
+                        't' => text.push('\t'),
+                        'r' => text.push('\r'),
+                        '0' => text.push('\0'),
+                        '\\' => text.push('\\'),
+                        '\'' => text.push('\''),
+                        '"' => text.push('"'),
+                        _ => diag::fatal!(loc, "unsupported escape sequence: \\{}", escaped_ch),
+                    }
+                    continue;
+                } else {
+                    diag::fatal!(loc, "unfinished escape sequence");
+                }
+            }
+
+            if ch == quote_char {
+                if is_char {
+                    if text.len() != 1 {
+                        diag::fatal!(loc, "character literal must contain exactly one character");
+                    }
+                    return Some(Token::with_text(TokenKind::Char, &text, loc));
+                } else {
+                    return Some(Token::with_text(TokenKind::String, &text, loc));
+                }
+            }
+
+            text.push(ch);
+
+            if is_char && text.len() > 1 {
+                diag::fatal!(loc, "character literal too long");
+            }
+        }
+
+        diag::fatal!(loc, "unclosed {} literal", if is_char { "character" } else { "string" });
     }
 }
