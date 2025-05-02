@@ -2,6 +2,7 @@ use crate::diag;
 use crate::parser::{Ast, BinaryOp, Expr, Function, Literal, Statement, Variable};
 
 use std::io::{self, Write};
+use std::process::Command;
 
 pub struct Generator<'a, W: Write> {
     out: W,
@@ -474,4 +475,33 @@ fn get_variable_position(name: &str, scope: &Vec<Variable>) -> usize {
         Some(pos) => pos,
         None => diag::fatal!("variable '{}' not found in current scope", name),
     }
+}
+
+pub fn generate_object_from_assembly(assembly_path: &str, object_path: &str) {
+    Command::new("as")
+        .args(&["-arch", "arm64", "-o", object_path, assembly_path])
+        .status().unwrap_or_else(|_| {
+            diag::fatal!("cannot create object file");
+        });
+}
+
+pub fn link_object_file(object_path: &str, output_path: &str) {
+    let sdk_output = Command::new("xcrun")
+        .args(["--show-sdk-path"])
+        .output().unwrap().stdout;
+    let sdk_path = String::from_utf8_lossy(&sdk_output).trim().to_string();
+
+    Command::new("ld")
+        .args([
+            "-o", output_path,
+            object_path,
+            "-lSystem",
+            "-syslibroot",
+            &sdk_path,
+            "-e", "_main",
+            "-arch", "arm64"
+        ])
+        .status().unwrap_or_else(|_| {
+            diag::fatal!("cannot link object file to executable");
+        });
 }
