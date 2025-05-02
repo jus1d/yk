@@ -63,13 +63,17 @@ impl<'a> Generator<'a> {
     }
 
     fn write_preamble(&mut self) -> io::Result<()> {
-        writeln!(self.out, ".global _main")?;
+        writeln!(self.out, ".global _start")?;
         writeln!(self.out, ".align 2\n")?;
+        writeln!(self.out, "_start:")?;
+        writeln!(self.out, "    bl      main")?;
+        writeln!(self.out, "    mov     x16, 1")?;
+        writeln!(self.out, "    svc     0\n")?;
         Ok(())
     }
 
     fn write_func(&mut self, func: &Function) -> io::Result<()> {
-        writeln!(self.out, "_{}:", func.name)?;
+        writeln!(self.out, "{}:", func.name)?;
 
         let params_count = func.params.len();
         let declarations_count = func.body.iter().filter(|s| matches!(s, Statement::Declaration { .. })).count();
@@ -115,7 +119,6 @@ impl<'a> Generator<'a> {
         let stack_size = stack_size(offset);
 
         self.c("epilogue", true)?;
-        writeln!(self.out, "    mov     sp, x29")?;
         writeln!(self.out, "    ldp     x29, x30, [sp], {}", stack_size)?;
         writeln!(self.out, "    ret")
     }
@@ -350,7 +353,7 @@ impl<'a> Generator<'a> {
         }
 
         self.c(&format!("call: {}", name), true)?;
-        writeln!(self.out, "    bl      _{}", name)?;
+        writeln!(self.out, "    bl       {}", name)?;
 
         self.c("restore temp registers", true)?;
         writeln!(self.out, "    ldp     x11, x12, [sp], 16")?;
@@ -371,7 +374,7 @@ impl<'a> Generator<'a> {
 
     fn write_puts(&mut self) -> io::Result<()> {
         self.c("std::puts", false)?;
-        writeln!(self.out, "_puts:")?;
+        writeln!(self.out, "puts:")?;
         writeln!(self.out, "    mov     x1, x0")?;
         writeln!(self.out, "    mov     x2, 0")?;
         writeln!(self.out, "1:")?;
@@ -390,7 +393,7 @@ impl<'a> Generator<'a> {
 
     fn write_puti(&mut self) -> io::Result<()> {
         self.c("std::puti", false)?;
-        writeln!(self.out, "_puti:")?;
+        writeln!(self.out, "puti:")?;
         writeln!(self.out, "    stp     x29, x30, [sp, -48]!")?;
         writeln!(self.out, "    mov     x29, sp")?;
         writeln!(self.out, "    cmp     x0, 0")?;
@@ -443,7 +446,7 @@ impl<'a> Generator<'a> {
 
     fn write_exit(&mut self) -> io::Result<()> {
         self.c("std::exit", false)?;
-        writeln!(self.out, "_exit:")?;
+        writeln!(self.out, "exit:")?;
         writeln!(self.out, "    mov     x16, 1")?;
         writeln!(self.out, "    svc     0")?;
         writeln!(self.out)?;
@@ -452,8 +455,10 @@ impl<'a> Generator<'a> {
 
     fn write_data_section(&mut self) -> io::Result<()> {
         self.c("data section", false)?;
-        writeln!(self.out, "minus_char:")?;
-        writeln!(self.out, "    .asciz \"-\"")?;
+        if self.use_puti {
+            writeln!(self.out, "minus_char:")?;
+            writeln!(self.out, "    .asciz \"-\"")?;
+        }
 
         for (i, s) in self.strings.iter().enumerate() {
             let escaped = s.replace("\n", "\\n");
@@ -499,7 +504,7 @@ pub fn link_object_file(verbose: bool, object_path: &str, output_path: &str) {
     let sdk_path = String::from_utf8_lossy(&sdk_output).trim().to_string();
 
     execute_command(verbose, "ld",
-        &["-o", output_path, object_path, "-lSystem", "-syslibroot", &sdk_path, "-e", "_main", "-arch", "arm64"])
+        &["-o", output_path, object_path, "-lSystem", "-syslibroot", &sdk_path, "-e", "_start", "-arch", "arm64"])
         .unwrap_or_else(|_| {
             diag::fatal!("cannot link object file to executable");
         });
