@@ -396,7 +396,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                         Some(number_token) => {
                             match number_token.kind {
                                 TokenKind::Number => return Expr::Literal { lit: Literal::Number(-number_token.number), loc: token.loc },
-                                _ => diag::fatal!(token.loc, "expected integer after `-`, got `{}`", token.kind),
+                                _ => diag::fatal!(number_token.loc, "expected integer after `-`, got `{}`", number_token.text),
                             }
                         }
                     }

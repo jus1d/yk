@@ -224,8 +224,14 @@ impl<Chars: Iterator<Item = char> + Clone> Iterator for Lexer<Chars> {
             '*' => return Some(Token::with_text(TokenKind::Star, &text, loc)),
             '/' => {
                 if self.chars.next_if(|ch| *ch == '/').is_some() {
+                    self.cur += 1;
                     while let Some(ch) = self.chars.next() {
-                        if ch == '\n' { break; }
+                        self.cur += 1;
+                        if ch == '\n' {
+                            self.line += 1;
+                            self.bol = self.cur;
+                            break;
+                        }
                     }
                     return self.next();
                 }
