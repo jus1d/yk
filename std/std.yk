@@ -77,14 +77,14 @@ fn pow(int64 x, int64 power) int64 {
 }
 
 // abs: returns an absolute value of an integer
-// fn abs(int64 x) int64 {
-//     if x >= 0 {
-//         ret x;
-//     }
-//
-//     // TODO: unary `-` does not work with variables
-//     ret -x;
-// }
+fn abs(int64 x) int64 {
+    if x >= 0 {
+        ret x;
+    }
+
+    // TODO: unary `-` does not work with variables
+    ret 0-x;
+}
 
 // min: returns the smallest of two integers
 fn min(int64 a, int64 b) int64 {
