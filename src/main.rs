@@ -22,7 +22,7 @@ fn main() {
 
     let mut ast = parser.parse_ast();
     if !opts.disable_analyzing {
-        analyzer::analyze(&ast);
+        analyzer::analyze(&mut ast);
     }
 
     if opts.enable_optimization {

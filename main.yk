@@ -1,3 +1,4 @@
 fn main() int64 {
+    let x!;
     ret 0;
 }

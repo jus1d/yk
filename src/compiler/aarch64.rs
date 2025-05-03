@@ -1,5 +1,5 @@
 use crate::diag;
-use crate::parser::{Ast, BinaryOp, Expr, Function, Literal, Statement, Variable};
+use crate::parser::{Ast, BinaryOp, Expr, Function, Literal, Statement};
 
 use std::io::{self, Write};
 use std::process::{Command, Output};
@@ -10,7 +10,7 @@ pub struct Generator<'a> {
     strings: Vec<String>,
     label_counter: usize,
     emit_comments: bool,
-    // TODO: do something with this flags:
+    // TODO: Factor out builtin func usings
     use_exit: bool,
     use_write: bool,
     use_puti: bool,
@@ -97,9 +97,9 @@ impl<'a> Generator<'a> {
             }
         }
 
-        let mut scope = Vec::new();
+        let mut scope: Vec<String> = Vec::new();
         for arg in func.params.clone() {
-            scope.push(arg);
+            scope.push(arg.name);
         }
 
         if !func.body.is_empty() {
@@ -131,7 +131,7 @@ impl<'a> Generator<'a> {
         writeln!(self.out, "    ret")
     }
 
-    fn write_statement(&mut self, statement: &Statement, current_func: &Function, declarations_count: usize, scope: &mut Vec<Variable>) -> io::Result<()> {
+    fn write_statement(&mut self, statement: &Statement, current_func: &Function, declarations_count: usize, scope: &mut Vec<String>) -> io::Result<()> {
         match statement {
             Statement::Ret { value } => {
                 if let Some(expr) = value {
@@ -201,8 +201,8 @@ impl<'a> Generator<'a> {
             Statement::Funcall { name, args, loc: _ } => {
                 self.write_funcall(name, args, scope, current_func, 0)?;
             }
-            Statement::Declaration { name, typ, value } => {
-                scope.push(Variable { name: name.clone(), typ: typ.clone() });
+            Statement::Declaration { name, value, .. } => {
+                scope.push(name.clone());
                 if let Some(expr) = value {
                     self.write_expression(expr, scope, current_func, 8)?;
                     self.c(&format!("declaration: {} = {}", name, expr), true)?;
@@ -218,7 +218,7 @@ impl<'a> Generator<'a> {
         Ok(())
     }
 
-    fn write_expression(&mut self, expr: &Expr, scope: &mut Vec<Variable>, current_func: &Function, target_register_index: u8) -> io::Result<()> {
+    fn write_expression(&mut self, expr: &Expr, scope: &mut Vec<String>, current_func: &Function, target_register_index: u8) -> io::Result<()> {
         match expr {
             Expr::Literal { lit, .. } => self.write_literal(lit, target_register_index),
             Expr::Binary { op, lhs, rhs, .. } => self.write_binop(op, lhs, rhs, scope, current_func, target_register_index),
@@ -228,7 +228,7 @@ impl<'a> Generator<'a> {
         }
     }
 
-    fn write_index(&mut self, collection: &Expr, index: &Expr, scope: &mut Vec<Variable>, current_func: &Function, target_register_index: u8) -> io::Result<()> {
+    fn write_index(&mut self, collection: &Expr, index: &Expr, scope: &mut Vec<String>, current_func: &Function, target_register_index: u8) -> io::Result<()> {
         self.write_expression(collection, scope, current_func, 9)?;
         self.write_expression(index, scope, current_func, 10)?;
         writeln!(self.out, "    ldrb    w{}, [x9, x10]", target_register_index)?;
@@ -260,7 +260,7 @@ impl<'a> Generator<'a> {
         Ok(())
     }
 
-    fn write_binop(&mut self, op: &BinaryOp, lhs: &Expr, rhs: &Expr, scope: &mut Vec<Variable>, current_func: &Function, target_register_index: u8) -> io::Result<()> {
+    fn write_binop(&mut self, op: &BinaryOp, lhs: &Expr, rhs: &Expr, scope: &mut Vec<String>, current_func: &Function, target_register_index: u8) -> io::Result<()> {
         self.write_expression(lhs, scope, current_func, 9)?;
 
         match op {
@@ -347,7 +347,7 @@ impl<'a> Generator<'a> {
         }
     }
 
-    fn write_funcall(&mut self, name: &str, args: &[Expr], scope: &mut Vec<Variable>, current_func: &Function, target_register_index: u8) -> io::Result<()> {
+    fn write_funcall(&mut self, name: &str, args: &[Expr], scope: &mut Vec<String>, current_func: &Function, target_register_index: u8) -> io::Result<()> {
         match name {
             "exit" => self.use_exit = true,
             "write" => self.use_write = true,
@@ -395,7 +395,7 @@ impl<'a> Generator<'a> {
         Ok(())
     }
 
-    fn write_variable(&mut self, name: &str, scope: &Vec<Variable>, target_register_index: u8) -> io::Result<()> {
+    fn write_variable(&mut self, name: &str, scope: &Vec<String>, target_register_index: u8) -> io::Result<()> {
         let pos = get_variable_position(name, scope);
         self.c(&format!("var: {}", name), true)?;
         writeln!(self.out, "    ldr     x{}, [x29, {}]", target_register_index, 16 + 8 * pos)
@@ -544,8 +544,8 @@ fn stack_size(offset: usize) -> usize {
     stack_size
 }
 
-fn get_variable_position(name: &str, scope: &Vec<Variable>) -> usize {
-    match scope.iter().position(|p| p.name == name) {
+fn get_variable_position(name: &str, scope: &Vec<String>) -> usize {
+    match scope.iter().position(|n| n == name) {
         Some(pos) => pos,
         None => unreachable!(),
     }

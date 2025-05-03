@@ -138,18 +138,34 @@ fn typecheck_statement(ast: &Ast, func: &Function, statement: &Statement, vars: 
                 diag::fatal!("variable name collides with reserved keyword `{}`", name);
             }
 
-            if let Some(value) = value {
-                let actual_type = get_expr_type(ast, value, vars, builtin_funcs);
-                let expected_type = typ.clone();
-                if actual_type != expected_type {
-                    diag::fatal!(value.clone().loc(), "expected expression of type `{}`, but got `{}`", expected_type, actual_type);
-                }
-            }
+            match typ {
+                Some(typ) => {
+                    if let Some(value) = value {
+                        let actual_type = get_expr_type(ast, value, vars, builtin_funcs);
+                        let expected_type = typ.clone();
+                        if actual_type != expected_type {
+                            diag::fatal!(value.clone().loc(), "expected expression of type `{}`, but got `{}`", expected_type, actual_type);
+                        }
+                    }
 
-            vars.push(Variable {
-                name: name.clone(),
-                typ: typ.clone(),
-            });
+                    vars.push(Variable {
+                        name: name.clone(),
+                        typ: typ.clone(),
+                    });
+                },
+                None => {
+                    if let Some(value) = value {
+                        let value_type = get_expr_type(ast, value, vars, builtin_funcs);
+
+                        vars.push(Variable {
+                            name: name.clone(),
+                            typ: value_type,
+                        });
+                    } else {
+                        diag::fatal!("type of variable `{}` must be known at compile time. provide either type annotation, or assign value", name)
+                    }
+                },
+            }
         },
         Statement::Assignment { name, value } => {
             let actual_type = get_expr_type(ast, value, vars, builtin_funcs);

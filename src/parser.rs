@@ -65,7 +65,7 @@ pub enum Statement {
     },
     Declaration {
         name: String,
-        typ: Type,
+        typ: Option<Type>,
         value: Option<Expr>,
     },
     Assignment {
@@ -514,35 +514,44 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                             }
                         };
 
-                        self.expect(TokenKind::Colon);
+                        match self.tokens.next() {
+                            Some(token) => match token.kind {
+                                TokenKind::Colon => {
+                                    let typ = match self.tokens.next() {
+                                        Some(token) => {
+                                            match get_primitive_type(&token.text) {
+                                                Some(typ) => typ,
+                                                None => diag::fatal!(token.loc, "expected type, got `{}`", token.text),
+                                            }
+                                        },
+                                        None => {
+                                            diag::fatal!("expected type, got EOF");
+                                        }
+                                    };
 
-                        let typ = match self.tokens.next() {
-                            Some(token) => {
-                                match get_primitive_type(&token.text) {
-                                    Some(typ) => typ,
-                                    None => diag::fatal!(token.loc, "expected type, got `{}`", token.text),
-                                }
+                                    if typ == Type::Never {
+                                        diag::fatal!(token.loc, "cannot declare variable with `{}` type", typ);
+                                    }
+
+                                    if self.tokens.next_if(|token| token.kind == TokenKind::Semicolon).is_some() {
+                                        return Statement::Declaration { name, typ: Some(typ), value: None };
+                                    }
+
+                                    self.expect(TokenKind::Equals);
+                                    let value = self.parse_expression();
+                                    self.expect(TokenKind::Semicolon);
+                                    return Statement::Declaration { name, typ: Some(typ), value: Some(value) };
+                                },
+                                TokenKind::Equals => {
+                                    let value = self.parse_expression();
+                                    self.expect(TokenKind::Semicolon);
+                                    return Statement::Declaration { name, typ: None, value: Some(value) };
+                                },
+                                TokenKind::Semicolon => diag::fatal!(token.loc, "cannot know type of variable at compile time, specify type annotation or assign a value"),
+                                _ => diag::fatal!(token.loc, "expected `{}` or `{}`, got `{}`", TokenKind::Colon, TokenKind::Equals, token.text),
                             },
-                            None => {
-                                diag::fatal!("expected type, got EOF");
-                            }
-                        };
-
-                        if typ == Type::Never {
-                            diag::fatal!("cannot declare variable with `{}` type", typ);
+                            None => diag::fatal!(token.loc, "expected `{}` or `{}`, got EOF", TokenKind::Colon, TokenKind::Equals),
                         }
-
-                        if self.tokens.next_if(|token| token.kind == TokenKind::Semicolon).is_some() {
-                            return Statement::Declaration { name, typ, value: None };
-                        }
-
-                        self.expect(TokenKind::Equals);
-
-                        let value = self.parse_expression();
-
-                        self.expect(TokenKind::Semicolon);
-
-                        return Statement::Declaration { name, typ, value: Some(value) };
                     },
                     _ => {
                         let name = token.text.clone();
@@ -578,7 +587,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                         return Statement::Funcall { name, args, loc: funcall_loc };
                     }
                 },
-                _ => diag::fatal!(token.loc, "expected statement, got {}\nonly `ret` and `funcall` statements are supported yet", token.kind),
+                _ => diag::fatal!(token.loc, "unexpected token: `{}`\n", token.text),
             },
             None => diag::fatal!("expected statement, got EOF"),
         }
