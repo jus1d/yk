@@ -1,3 +1,5 @@
+include "std/std.yk";
+
 fn main() int64 {
     let counter: int64 = 0;
     let target: int64 = 69;

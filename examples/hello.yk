@@ -1,4 +1,7 @@
+// Classical program "hello world" without stdlib.
+
 fn main() int64 {
-    puts("Hello world!\n");
+    let message: string = "Hello, world!\n";
+    write(1, message, strlen(message));
     ret 0;
 }
