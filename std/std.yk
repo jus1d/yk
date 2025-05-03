@@ -8,9 +8,27 @@ fn puts(string buf) {
     fputs(1, buf);
 }
 
+// putsln: prints a string with terminating new line to stdout
+fn putsln(string s) {
+    puts(s);
+    puts("\n");
+}
+
 // eputs: prints string buffer into `stderr`
 fn eputs(string buf) {
     fputs(2, buf);
+}
+
+// eputsln: prints string buffer into `stderr` with terminating new line
+fn eputsln(string buf) {
+    fputs(2, buf);
+    fputs(2, "\n");
+}
+
+// putiln: prints an integer with terminating new line to stdout
+fn putiln(int64 x) {
+    puti(x);
+    puts("\n");
 }
 
 // TODO: introduce `fputs` to print into `stderr`
@@ -47,18 +65,6 @@ fn streq(string s1, string s2) bool {
     }
 
     ret true;
-}
-
-// putsln: prints a string with terminating new line to stdout
-fn putsln(string s) {
-    puts(s);
-    puts("\n");
-}
-
-// putiln: prints an integer with terminating new line to stdout
-fn putiln(int64 x) {
-    puti(x);
-    puts("\n");
 }
 
 // pow: calculates `x` to the power of `power`

@@ -1,8 +1,3 @@
-include "std/std.yk";
-
 fn main() int64 {
-    let buffer: string = "Some text here\n";
-    eputs(buffer);
-    puts(buffer);
     ret 0;
 }

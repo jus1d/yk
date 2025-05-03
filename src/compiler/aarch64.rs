@@ -512,7 +512,10 @@ impl<'a> Generator<'a> {
     }
 
     fn write_data_section(&mut self) -> io::Result<()> {
-        self.c("data section", false)?;
+        if self.use_puti || self.strings.len() > 0 {
+            self.c("data section", false)?;
+        }
+
         if self.use_puti {
             writeln!(self.out, "minus_char:")?;
             writeln!(self.out, "    .asciz \"-\"")?;
