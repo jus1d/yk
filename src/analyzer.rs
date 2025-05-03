@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::lexer::Loc;
-use crate::parser::{Ast, BinaryOp, Expr, Function, Literal, Statement, Type, Variable, KEYWORDS};
+use crate::parser::{Ast, BinaryOp, Expr, Function, Literal, Statement, Type, UnaryOp, Variable, KEYWORDS};
 use crate::diag;
 
 pub fn analyze(ast: &Ast) {
@@ -213,12 +213,26 @@ fn typecheck_binop(ast: &Ast, op: &BinaryOp, lhs: &Expr, rhs: &Expr, loc: &Loc, 
     }
 }
 
+fn typecheck_unary(ast: &Ast, op: &UnaryOp, operand: &Expr, vars: &Vec<Variable>, builtin_funcs: &HashMap<String, Function>) {
+    let operand_type = get_expr_type(ast, operand, vars, builtin_funcs);
+    match op {
+        UnaryOp::Negate => {
+            if operand_type != Type::Int64 {
+                diag::fatal!(operand.clone().loc(), "unary operator `{}` cannot be applied to `{}`, expected `{}`", UnaryOp::Negate, operand_type, Type::Int64);
+            }
+        },
+    }
+}
+
 fn typecheck_expr(ast: &Ast, expr: &Expr, vars: &Vec<Variable>, builtin_funcs: &HashMap<String, Function>, user_funcs: &HashMap<String, Function>) {
     match expr {
         Expr::Literal { .. } => {}
         Expr::Binary { op, lhs, rhs, loc } => {
             typecheck_binop(ast, op, lhs, rhs, loc, vars, builtin_funcs);
-        }
+        },
+        Expr::Unary { op, operand, .. } => {
+            typecheck_unary(ast, op, operand, vars, builtin_funcs);
+        },
         Expr::Funcall { name, args, loc } => {
             typecheck_funcall(ast, name, args, loc, vars, builtin_funcs, user_funcs);
         }
@@ -302,6 +316,14 @@ fn get_binop_type(op: &BinaryOp) -> Type {
     }
 }
 
+fn get_unary_type(op: &UnaryOp) -> Type {
+    match op {
+        UnaryOp::Negate => {
+            return Type::Int64;
+        },
+    }
+}
+
 fn get_expr_type(ast: &Ast, expr: &Expr, vars: &Vec<Variable>, builtin_funcs: &HashMap<String, Function>) -> Type {
     match expr {
         Expr::Literal { lit, .. } => match lit {
@@ -312,6 +334,9 @@ fn get_expr_type(ast: &Ast, expr: &Expr, vars: &Vec<Variable>, builtin_funcs: &H
         },
         Expr::Binary { op, .. } => {
             return get_binop_type(op);
+        },
+        Expr::Unary { op, .. } => {
+            return get_unary_type(op);
         },
         Expr::Funcall { name, loc, .. } => {
             match ast.functions.get(name) {

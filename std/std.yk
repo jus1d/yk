@@ -70,7 +70,7 @@ fn panic(string message)! {
 fn pow(int64 x, int64 power) int64 {
     let result: int64 = 1;
     while power > 0 {
-        // result = result * x;
+        result = result * x;
         power = power - 1;
     }
     ret result;
@@ -82,8 +82,7 @@ fn abs(int64 x) int64 {
         ret x;
     }
 
-    // TODO: unary `-` does not work with variables
-    ret 0-x;
+    ret -x;
 }
 
 // min: returns the smallest of two integers

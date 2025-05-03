@@ -106,6 +106,11 @@ pub enum Expr {
         rhs: Box<Expr>,
         loc: Loc,
     },
+    Unary {
+        op: UnaryOp,
+        operand: Box<Expr>,
+        loc: Loc,
+    },
     Index {
         collection: Box<Expr>,
         index: Box<Expr>,
@@ -120,6 +125,7 @@ impl Expr {
             Expr::Literal { loc, .. } => loc,
             Expr::Funcall { loc, .. } => loc,
             Expr::Binary { loc, .. } => loc,
+            Expr::Unary { loc, .. } => loc,
             Expr::Index { loc, .. } => loc,
         }
     }
@@ -130,6 +136,11 @@ pub enum BinaryOp {
     Add, Sub, Mul, Div, Mod,
     EQ, NE, GT, LT, GE, LE,
     LogicalOr, LogicalAnd,
+}
+
+#[derive(Clone, Debug)]
+pub enum UnaryOp {
+    Negate,
 }
 
 pub struct Parser<Tokens> where Tokens: Iterator<Item = Token> {
@@ -335,6 +346,15 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
             diag::fatal!("expected expression, got EOF");
         }
 
+        if let Some(token) =  self.tokens.next_if(|token| token.kind == TokenKind::Minus) {
+            let operand = self.parse_expr_prec(10);
+            if matches!(operand, Expr::Unary { .. }) {
+                diag::fatal!(operand.clone().loc(), "cannot nest unary operations");
+            }
+
+            return Expr::Unary { op: UnaryOp::Negate, operand: Box::new(operand), loc: token.loc }
+        }
+
         let mut primary = self.parse_primary_expr();
         if let Some(_) = self.tokens.next_if(|token| token.kind == TokenKind::OpenBracket) {
             let index = self.parse_primary_expr();
@@ -389,18 +409,6 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                 TokenKind::Number => return Expr::Literal { lit: Literal::Number(token.number), loc: token.loc },
                 TokenKind::String => return Expr::Literal { lit: Literal::String(token.text), loc: token.loc },
                 TokenKind::Char => return Expr::Literal { lit: Literal::Char(token.text.chars().nth(0).unwrap()), loc: token.loc },
-                // Negative integer
-                TokenKind::Minus => {
-                    match self.tokens.next() {
-                        None => diag::fatal!(token.loc, "expected expression, found EOF"),
-                        Some(number_token) => {
-                            match number_token.kind {
-                                TokenKind::Number => return Expr::Literal { lit: Literal::Number(-number_token.number), loc: token.loc },
-                                _ => diag::fatal!(number_token.loc, "expected integer after `-`, got `{}`", number_token.text),
-                            }
-                        }
-                    }
-                },
                 TokenKind::Word => {
                     // Funcall
                     if self.tokens.next_if(|token| token.kind == TokenKind::OpenParen).is_some() {
@@ -650,6 +658,9 @@ impl fmt::Display for Expr {
             Expr::Binary { op, lhs, rhs, .. } => {
                 write!(f, "({} {} {})", lhs, op, rhs)
             },
+            Expr::Unary { op, operand, .. } => {
+                write!(f, "{}{}", op, operand)
+            },
             Expr::Index { collection, index, .. } => {
                 write!(f, "{}[{}]", collection, index)
             },
@@ -673,6 +684,15 @@ impl fmt::Display for BinaryOp {
                 BinaryOp::LE => "<=",
                 BinaryOp::LogicalOr => "||",
                 BinaryOp::LogicalAnd => "||",
+            }
+        )
+    }
+}
+
+impl fmt::Display for UnaryOp {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", match self {
+                UnaryOp::Negate => "-",
             }
         )
     }

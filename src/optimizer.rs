@@ -98,6 +98,9 @@ fn mark_unused_functions_expression(ast: &Ast, expr: &Expr, used_funcs: &mut Has
             mark_unused_functions_expression(ast, lhs, used_funcs, visited);
             mark_unused_functions_expression(ast, rhs, used_funcs, visited);
         },
+        Expr::Unary { operand, .. } => {
+            mark_unused_functions_expression(ast, operand, used_funcs, visited);
+        },
         Expr::Funcall { name, args, .. } => {
             used_funcs.insert(name.clone());
 

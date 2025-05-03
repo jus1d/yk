@@ -1,5 +1,5 @@
 use crate::diag;
-use crate::parser::{Ast, BinaryOp, Expr, Function, Literal, Statement};
+use crate::parser::{Ast, BinaryOp, Expr, Function, Literal, Statement, UnaryOp};
 
 use std::io::{self, Write};
 use std::process::{Command, Output};
@@ -222,6 +222,7 @@ impl<'a> Generator<'a> {
         match expr {
             Expr::Literal { lit, .. } => self.write_literal(lit, target_register_index),
             Expr::Binary { op, lhs, rhs, .. } => self.write_binop(op, lhs, rhs, scope, current_func, target_register_index),
+            Expr::Unary { op, operand, .. } => self.write_unary(op, operand, scope, current_func, target_register_index),
             Expr::Funcall { name, args, .. } => self.write_funcall(name, args, scope, current_func, target_register_index),
             Expr::Variable { name, .. } => self.write_variable(name, scope, target_register_index),
             Expr::Index { collection, index, .. } => self.write_index(collection, index, scope, current_func, target_register_index),
@@ -345,6 +346,20 @@ impl<'a> Generator<'a> {
                 }
             }
         }
+    }
+
+    fn write_unary(&mut self, op: &UnaryOp, operand: &Expr, scope: &mut Vec<String>, current_func: &Function, target_register_index: u8) -> io::Result<()> {
+        // NOTE: to not pollute temp registers (x9, ...), we can write operand right into target register
+        self.write_expression(operand, scope, current_func, target_register_index)?;
+
+        self.c(&format!("unary: {}{}", op, operand), true)?;
+        match op {
+            UnaryOp::Negate => {
+                writeln!(self.out, "    neg     x{}, x{}", target_register_index, target_register_index)?;
+            },
+        }
+
+        Ok(())
     }
 
     fn write_funcall(&mut self, name: &str, args: &[Expr], scope: &mut Vec<String>, current_func: &Function, target_register_index: u8) -> io::Result<()> {
