@@ -31,14 +31,6 @@ fn putiln(int64 x) {
     puts("\n");
 }
 
-// TODO: introduce `fputs` to print into `stderr`
-// panic: prints an error message and exits with non-zero exit code
-fn panic(string message)! {
-    puts("panic: ");
-    putsln(message);
-    exit(1);
-}
-
 // nth: relatively safely gets a character from string by index
 fn nth(string s, int64 index) char {
     if index < 0 || index >= strlen(s) {
@@ -58,13 +50,20 @@ fn streq(string s1, string s2) bool {
 
     let i: int64 = 0;
     while i < n1 {
-        if nth(s1, i) != nth(s2, i) {
+        if s1[i] != s2[i] {
             ret false;
         }
         i = i + 1;
     }
 
     ret true;
+}
+
+// panic: prints an error message and exits with non-zero exit code
+fn panic(string message)! {
+    eputs("panic: ");
+    eputsln(message);
+    exit(1);
 }
 
 // pow: calculates `x` to the power of `power`
@@ -75,4 +74,44 @@ fn pow(int64 x, int64 power) int64 {
         power = power - 1;
     }
     ret result;
+}
+
+// abs: returns an absolute value of an integer
+fn abs(int64 x) int64 {
+    if x >= 0 {
+        ret x;
+    }
+
+    ret -x;
+}
+
+// min: returns the smallest of two integers
+fn min(int64 a, int64 b) int64 {
+    if a < b {
+        ret a;
+    }
+
+    ret b;
+}
+
+// max: returns the largest of two integers
+fn max(int64 a, int64 b) int64 {
+    if a > b {
+        ret a;
+    }
+
+    ret b;
+}
+
+// cmp: compares two integers, and returns -1, 0 or 1, based on their relation
+fn cmp(int64 a, int64 b) int64 {
+    if a < b {
+        ret -1;
+    }
+
+    if a > b {
+        ret 1;
+    }
+
+    ret 0;
 }
