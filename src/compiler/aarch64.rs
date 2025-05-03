@@ -12,7 +12,7 @@ pub struct Generator<'a> {
     emit_comments: bool,
     // TODO: do something with this flags:
     use_exit: bool,
-    use_puts: bool,
+    use_write: bool,
     use_puti: bool,
     use_putc: bool,
     use_strlen: bool,
@@ -27,7 +27,7 @@ impl<'a> Generator<'a> {
             label_counter: 0,
             emit_comments,
             use_exit: false,
-            use_puts: false,
+            use_write: false,
             use_puti: false,
             use_putc: false,
             use_strlen: false,
@@ -58,8 +58,8 @@ impl<'a> Generator<'a> {
         if self.use_strlen {
             self.write_strlen()?;
         }
-        if self.use_puts {
-            self.write_puts()?;
+        if self.use_write {
+            self.write_write()?;
         }
         if self.use_puti {
             self.write_puti()?;
@@ -350,7 +350,7 @@ impl<'a> Generator<'a> {
     fn write_funcall(&mut self, name: &str, args: &[Expr], scope: &mut Vec<Variable>, current_func: &Function, target_register_index: u8) -> io::Result<()> {
         match name {
             "exit" => self.use_exit = true,
-            "puts" => self.use_puts = true,
+            "write" => self.use_write = true,
             "putc" => self.use_putc = true,
             "puti" => self.use_puti = true,
             "strlen" => self.use_strlen = true,
@@ -362,10 +362,23 @@ impl<'a> Generator<'a> {
         writeln!(self.out, "    stp     x11, x12, [sp, -16]!")?;
 
         if !args.is_empty() {
+            let n = args.len();
+            let stack_size = if n % 2 == 0 { n * 8 } else { n * 8 + 8 };
+
             self.c(&format!("load args for {}", name), true)?;
+            writeln!(self.out, "    sub     sp, sp, {}", stack_size)?;
+
             for (i, arg) in args.iter().enumerate() {
-                self.write_expression(arg, scope, current_func, i as u8)?;
+                self.write_expression(arg, scope, current_func, 9)?;
+                writeln!(self.out, "    str     x9, [sp, {}]", 8 * i)?;
             }
+
+            for i in 0..n {
+                let pos = n - i - 1;
+                writeln!(self.out, "    ldr     x{}, [sp, {}]", pos, 8 * pos)?;
+            }
+
+            writeln!(self.out, "    add     sp, sp, {}", stack_size)?;
         }
 
         self.c(&format!("call: {}", name), true)?;
@@ -388,18 +401,9 @@ impl<'a> Generator<'a> {
         writeln!(self.out, "    ldr     x{}, [x29, {}]", target_register_index, 16 + 8 * pos)
     }
 
-    fn write_puts(&mut self) -> io::Result<()> {
-        self.c("std::puts", false)?;
-        writeln!(self.out, "puts:")?;
-        writeln!(self.out, "    mov     x1, x0")?;
-        writeln!(self.out, "    mov     x2, 0")?;
-        writeln!(self.out, "1:")?;
-        writeln!(self.out, "    ldrb    w3, [x1, x2]")?;
-        writeln!(self.out, "    cbz     w3, 2f")?;
-        writeln!(self.out, "    add     x2, x2, 1")?;
-        writeln!(self.out, "    b       1b")?;
-        writeln!(self.out, "2:")?;
-        writeln!(self.out, "    mov     x0, 1")?;
+    fn write_write(&mut self) -> io::Result<()> {
+        self.c("std::write", false)?;
+        writeln!(self.out, "write:")?;
         writeln!(self.out, "    mov     x16, 4")?;
         writeln!(self.out, "    svc     0")?;
         writeln!(self.out, "    ret")?;
@@ -422,6 +426,7 @@ impl<'a> Generator<'a> {
         writeln!(self.out, "    sub     x0, x0, 1")?;
         writeln!(self.out, "    ldp     x29, x30, [sp], 16")?;
         writeln!(self.out, "    ret")?;
+        writeln!(self.out)?;
         Ok(())
     }
 
@@ -440,6 +445,7 @@ impl<'a> Generator<'a> {
         writeln!(self.out, "    add     sp, sp, 16")?;
         writeln!(self.out, "    ldp     x29, x30, [sp], 16")?;
         writeln!(self.out, "    ret")?;
+        writeln!(self.out)?;
         Ok(())
     }
 

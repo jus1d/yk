@@ -11,13 +11,23 @@ pub fn analyze(ast: &Ast) {
 
 fn typecheck(ast: &Ast) {
     let builtin_funcs = HashMap::from([
-        (String::from("puts"), Function {
-            name: String::from("puts"),
-            ret_type: Type::Void,
-            params: vec![Variable {
-                name: String::from("s"),
-                typ: Type::String,
-            }],
+        (String::from("write"), Function {
+            name: String::from("write"),
+            ret_type: Type::Int64,
+            params: vec![
+                Variable {
+                    name: String::from("fd"),
+                    typ: Type::Int64,
+                },
+                Variable {
+                    name: String::from("buf"),
+                    typ: Type::String,
+                },
+                Variable {
+                    name: String::from("n"),
+                    typ: Type::Int64,
+                },
+            ],
             body: vec![],
         }),
         (String::from("putc"), Function {

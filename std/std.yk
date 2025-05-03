@@ -1,3 +1,18 @@
+// fputs: prints a string buffer into `fd`
+fn fputs(int64 fd, string buf) int64 {
+    ret write(fd, buf, strlen(buf));
+}
+
+// puts: prints string buffer into `stdout`
+fn puts(string buf) {
+    fputs(1, buf);
+}
+
+// eputs: prints string buffer into `stderr`
+fn eputs(string buf) {
+    fputs(2, buf);
+}
+
 // TODO: introduce `fputs` to print into `stderr`
 // panic: prints an error message and exits with non-zero exit code
 fn panic(string message)! {

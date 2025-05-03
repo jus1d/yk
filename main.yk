@@ -1,8 +1,8 @@
 include "std/std.yk";
 
 fn main() int64 {
-    let ch: char = 's';
-
-    putc(ch);
+    let buffer: string = "Some text here\n";
+    eputs(buffer);
+    puts(buffer);
     ret 0;
 }
