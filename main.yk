@@ -1,3 +1,5 @@
+include "std.yk";
+
 fn main() int64 {
     ret 0;
 }

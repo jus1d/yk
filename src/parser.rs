@@ -2,7 +2,7 @@ use crate::lexer::{self, Loc, Token, TokenKind};
 use crate::diag;
 
 use std::collections::HashMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::{fmt, fs};
 use std::iter::Peekable;
 use std::process::Command;
@@ -177,22 +177,48 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                                 diag::fatal!(include_path_token.loc, "expected `string` as include path, got token kind {}", include_path_token.kind);
                             }
 
+                            // TODO: Add include folder with -I flag to compiler
+                            let include_folders = &[".", "std"];
                             let include_path = include_path_token.text;
                             if let Some(ext) = Path::new(&include_path).extension().and_then(|ext| ext.to_str()) {
                                 if ext != "yk" {
                                     diag::fatal!(include_path_token.loc, "included file '{}' has wrong extension: `{}`, expected `yk`", include_path, ext);
                                 }
-                            }
-                            else {
+                            } else {
                                 diag::fatal!(include_path_token.loc, "included file '{}' has wrong extension", include_path);
                             }
 
                             let source = if include_path.starts_with("https://") {
                                 read_source_via_https(&include_path, include_path_token.loc)
                             } else {
-                                fs::read_to_string(&include_path).unwrap_or_else(|_| {
-                                    diag::fatal!(include_path_token.loc, "included file '{}' not found", include_path);
-                                })
+                                let mut found_path: Option<PathBuf> = None;
+                                for folder in include_folders {
+                                    let path = Path::new(folder).join(&include_path);
+                                    if path.exists() {
+                                        if let Some(found_path) = found_path {
+                                            diag::fatal!(include_path_token.loc, "cannot determine which file to include, some options: {}, {}", path.to_str().unwrap(), found_path.to_str().unwrap());
+                                        }
+                                        found_path = Some(path);
+                                    }
+                                }
+
+                                match found_path {
+                                    Some(path) => fs::read_to_string(&path).unwrap_or_else(|err| {
+                                        diag::fatal!(include_path_token.loc, "could not read included file '{}': {}", path.display(), err);
+                                    }),
+                                    None => {
+                                        let searched_paths = include_folders.iter()
+                                            .map(|f| format!("{}/{}", f, include_path))
+                                            .collect::<Vec<_>>()
+                                            .join(", ");
+                                        diag::fatal!(
+                                            include_path_token.loc,
+                                            "included file '{}' not found in any of: {}",
+                                            include_path,
+                                            searched_paths
+                                        );
+                                    }
+                                }
                             };
 
                             if source.is_empty() {

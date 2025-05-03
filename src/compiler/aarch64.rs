@@ -610,3 +610,5 @@ fn execute_command(verbose: bool, program: &str, args: &[&str]) -> Result<Output
 
     output
 }
+
+// TODO: Use set of strings, to prevent duplicating strings in data section
