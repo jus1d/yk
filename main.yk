@@ -1,5 +1,6 @@
 include "std.yk";
 
 fn main() int64 {
+    putc('E');
     ret 0;
 }

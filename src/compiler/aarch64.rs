@@ -12,12 +12,7 @@ pub struct Generator<'a> {
     strings: BTreeSet<String>,
     label_counter: usize,
     emit_comments: bool,
-    // TODO: Factor out builtin func usings
-    use_exit: bool,
-    use_write: bool,
-    use_puti: bool,
-    use_putc: bool,
-    use_strlen: bool,
+    builtins_used: BTreeSet<String>,
 }
 
 impl<'a> Generator<'a> {
@@ -28,11 +23,7 @@ impl<'a> Generator<'a> {
             strings: BTreeSet::new(),
             label_counter: 0,
             emit_comments,
-            use_exit: false,
-            use_write: false,
-            use_puti: false,
-            use_putc: false,
-            use_strlen: false,
+            builtins_used: BTreeSet::new(),
         }
     }
 
@@ -57,20 +48,15 @@ impl<'a> Generator<'a> {
             self.write_func(function)?;
         }
 
-        if self.use_strlen {
-            self.write_strlen()?;
-        }
-        if self.use_write {
-            self.write_write()?;
-        }
-        if self.use_puti {
-            self.write_puti()?;
-        }
-        if self.use_putc {
-            self.write_putc()?;
-        }
-        if self.use_exit {
-            self.write_exit()?;
+        for builtin_func_name in self.builtins_used.clone() {
+            match builtin_func_name.as_str() {
+                "strlen" => self.write_strlen()?,
+                "write" => self.write_write()?,
+                "puti" => self.write_puti()?,
+                "putc" => self.write_putc()?,
+                "exit" => self.write_exit()?,
+                _ => unreachable!(),
+            }
         }
         self.write_data_section()
     }
@@ -369,13 +355,8 @@ impl<'a> Generator<'a> {
     }
 
     fn write_funcall(&mut self, name: &str, args: &[Expr], scope: &mut Vec<String>, current_func: &Function, target_register_index: u8) -> io::Result<()> {
-        match name {
-            "exit" => self.use_exit = true,
-            "write" => self.use_write = true,
-            "putc" => self.use_putc = true,
-            "puti" => self.use_puti = true,
-            "strlen" => self.use_strlen = true,
-            _ => {}
+        if is_builtin_func(name) {
+            self.builtins_used.insert(name.to_string());
         }
 
         self.c("save temp registers", true)?;
@@ -533,11 +514,12 @@ impl<'a> Generator<'a> {
     }
 
     fn write_data_section(&mut self) -> io::Result<()> {
-        if self.use_puti || self.strings.len() > 0 {
+        let puti_used = self.builtins_used.contains("puti");
+        if puti_used || self.strings.len() > 0 {
             self.c("data section", false)?;
         }
 
-        if self.use_puti {
+        if puti_used {
             writeln!(self.out, "minus_char:")?;
             writeln!(self.out, "    .asciz \"-\"")?;
         }
@@ -615,4 +597,11 @@ fn execute_command(verbose: bool, program: &str, args: &[&str]) -> Result<Output
     }
 
     output
+}
+
+fn is_builtin_func(name: &str) -> bool {
+    match name {
+        "exit" | "write" | "putc" | "puti" | "strlen" => true,
+        _ => false
+    }
 }
