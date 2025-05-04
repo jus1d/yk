@@ -8,10 +8,10 @@ macro_rules! usage {
         println!("  OPTIONS:");
         println!("    -o <output>           Specify output path");
         println!("    -I<path>              Add `path` to list of include directories");
+        println!("    --opt                 Enable compiler optimizations");
+        println!("    --unsafe          (!) COMPLETELY disable analyzing and typechecking");
         println!("    --silent, -s          Do not print any logs of compilation");
         println!("    --emit-comments       Emit comments to assembly");
-        println!("    --unsafe              Disable analyzing and typechecking");
-        println!("    --opt                 Enable compiler optimizations");
         println!("    --help, -h            Print this help message");
     }};
 
