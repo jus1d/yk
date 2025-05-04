@@ -1,13 +1,15 @@
 use crate::diag;
 use crate::parser::{Ast, BinaryOp, Expr, Function, Literal, Statement, UnaryOp};
 
+use std::collections::BTreeSet;
 use std::io::{self, Write};
 use std::process::{Command, Output};
 
 pub struct Generator<'a> {
     out: Vec<u8>,
     ast: &'a Ast,
-    strings: Vec<String>,
+    // NOTE: Used BTreeSet instead of HashSet, 'cause unlike HashSet, it's ordered
+    strings: BTreeSet<String>,
     label_counter: usize,
     emit_comments: bool,
     // TODO: Factor out builtin func usings
@@ -23,7 +25,7 @@ impl<'a> Generator<'a> {
         Self {
             out: Vec::new(),
             ast,
-            strings: Vec::new(),
+            strings: BTreeSet::new(),
             label_counter: 0,
             emit_comments,
             use_exit: false,
@@ -243,8 +245,12 @@ impl<'a> Generator<'a> {
                 writeln!(self.out, "    mov     x{}, {}", target_register_index, n)?;
             }
             Literal::String(text) => {
-                let idx = self.strings.len();
-                self.strings.push(text.clone());
+                let idx = if let Some(idx) = self.strings.iter().position(|s| s == text) {
+                    idx
+                } else {
+                    self.strings.len()
+                };
+                self.strings.insert(text.clone());
                 self.c(&format!("string: \"{}\"", text.replace("\n", "\\n")), true)?;
                 writeln!(self.out, "    adrp    x{}, string.{}@PAGE", target_register_index, idx)?;
                 writeln!(self.out, "    add     x{}, x{}, string.{}@PAGEOFF", target_register_index, target_register_index, idx)?;
@@ -610,5 +616,3 @@ fn execute_command(verbose: bool, program: &str, args: &[&str]) -> Result<Output
 
     output
 }
-
-// TODO: Use set of strings, to prevent duplicating strings in data section

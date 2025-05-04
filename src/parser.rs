@@ -760,9 +760,4 @@ pub fn get_primitive_type(typ: &str) -> Option<Type> {
     }
 }
 
-// TODO: Allow not to specify type of declaration, where it can be known from value:
-//     let x = 69;
-//             ^^
-//             69 - is definitely an int64 => typeof(x) = int64
-//
 // TODO: Introduce support for constants
