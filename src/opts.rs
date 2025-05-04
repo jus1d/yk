@@ -7,6 +7,7 @@ macro_rules! usage {
         println!("Usage: {} [OPTIONS] <filename>", $program);
         println!("  OPTIONS:");
         println!("    -o <output>           Specify output path");
+        println!("    -I<path>              Add `path` to list of include directories");
         println!("    --silent, -s          Do not print any logs of compilation");
         println!("    --emit-comments       Emit comments to assembly");
         println!("    --unsafe              Disable analyzing and typechecking");
@@ -27,6 +28,7 @@ pub struct Opts {
     pub silent: bool,
     pub emit_comments: bool,
     pub enable_optimization: bool,
+    pub include_folders: Vec<String>
 }
 
 impl Opts {
@@ -39,6 +41,7 @@ impl Opts {
             silent: false,
             emit_comments: false,
             enable_optimization: false,
+            include_folders: Vec::from(&[String::from("."), String::from("std")]),
         };
         opts.program_name = args.next().unwrap();
 
@@ -72,7 +75,12 @@ impl Opts {
                     exit(0);
                 },
                 _ => {
-                    opts.input_path = arg;
+                    if let Some(include_folder) = arg.strip_prefix("-I") {
+                        opts.include_folders.push(include_folder.to_string());
+                    } else {
+                        // NOTE: If none of conditions: consider arg as input file path
+                        opts.input_path = arg;
+                    }
                 }
             }
         }

@@ -145,12 +145,14 @@ pub enum UnaryOp {
 
 pub struct Parser<Tokens> where Tokens: Iterator<Item = Token> {
     pub tokens: Peekable<Tokens>,
+    pub include_folders: Vec<String>,
 }
 
 impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
-    pub fn from_iter(tokens: Tokens) -> Self {
+    pub fn from_iter(tokens: Tokens, include_folders: Vec<String>) -> Self {
         Parser {
             tokens: tokens.peekable(),
+            include_folders,
         }
     }
 
@@ -177,8 +179,6 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                                 diag::fatal!(include_path_token.loc, "expected `string` as include path, got token kind {}", include_path_token.kind);
                             }
 
-                            // TODO: Add include folder with -I flag to compiler
-                            let include_folders = &[".", "std"];
                             let include_path = include_path_token.text;
                             if let Some(ext) = Path::new(&include_path).extension().and_then(|ext| ext.to_str()) {
                                 if ext != "yk" {
@@ -191,9 +191,15 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                             let source = if include_path.starts_with("https://") {
                                 read_source_via_https(&include_path, include_path_token.loc)
                             } else {
+                                if self.include_folders.len() == 0 {
+                                    diag::fatal!(include_path_token.loc,
+                                        "no include folders added, to find file `{}`",
+                                        include_path);
+                                }
+
                                 let mut found_path: Option<PathBuf> = None;
-                                for folder in include_folders {
-                                    let path = Path::new(folder).join(&include_path);
+                                for folder in &self.include_folders {
+                                    let path = Path::new(&folder).join(&include_path);
                                     if path.exists() {
                                         if let Some(found_path) = found_path {
                                             diag::fatal!(include_path_token.loc, "cannot determine which file to include, some options: {}, {}", path.to_str().unwrap(), found_path.to_str().unwrap());
@@ -207,16 +213,14 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                                         diag::fatal!(include_path_token.loc, "could not read included file '{}': {}", path.display(), err);
                                     }),
                                     None => {
-                                        let searched_paths = include_folders.iter()
+                                        let searched_paths = self.include_folders.iter()
                                             .map(|f| format!("{}/{}", f, include_path))
                                             .collect::<Vec<_>>()
                                             .join(", ");
-                                        diag::fatal!(
-                                            include_path_token.loc,
-                                            "included file '{}' not found in any of: {}",
-                                            include_path,
-                                            searched_paths
-                                        );
+
+                                        diag::fatal!(include_path_token.loc,
+                                            "included file '{}' not found in any of include folders: {}",
+                                            include_path, searched_paths);
                                     }
                                 }
                             };
@@ -226,7 +230,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                             }
 
                             let lexer = lexer::Lexer::new(source.chars(), &include_path);
-                            let mut parser = Parser::from_iter(lexer);
+                            let mut parser = Parser::from_iter(lexer, self.include_folders.clone());
 
                             let included_ast = parser.parse_ast();
 

@@ -18,11 +18,12 @@ fn main() {
     });
 
     let lexer = lexer::Lexer::new(source.chars(), &opts.input_path);
-    let mut parser = parser::Parser::from_iter(lexer);
+    let mut parser = parser::Parser::from_iter(lexer, opts.include_folders.clone());
 
     let mut ast = parser.parse_ast();
     if !opts.disable_analyzing {
-        analyzer::analyze(&mut ast);
+        analyzer::check_entrypoint_declaration(&ast);
+        analyzer::typecheck(&ast);
     }
 
     if opts.enable_optimization {

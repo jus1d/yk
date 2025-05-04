@@ -4,12 +4,7 @@ use crate::lexer::Loc;
 use crate::parser::{Ast, BinaryOp, Expr, Function, Literal, Statement, Type, UnaryOp, Variable, KEYWORDS};
 use crate::diag;
 
-pub fn analyze(ast: &Ast) {
-    check_entrypoint_declaration(ast);
-    typecheck(ast);
-}
-
-fn typecheck(ast: &Ast) {
+pub fn typecheck(ast: &Ast) {
     let builtin_funcs = HashMap::from([
         (String::from("write"), Function {
             name: String::from("write"),
@@ -95,7 +90,7 @@ fn typecheck_statement(ast: &Ast, func: &Function, statement: &Statement, vars: 
         Statement::Ret { value } => {
             if let Some(value) = value {
                 let expected_type = &func.ret_type;
-                let actual_type = &get_expr_type(ast, value, vars, builtin_funcs);
+                let actual_type = &get_expression_type(ast, value, vars, builtin_funcs);
                 if actual_type != expected_type {
                     diag::fatal!("mismatched type of return expression. expected `{}`, but got `{}`", expected_type, actual_type);
                 }
@@ -105,7 +100,7 @@ fn typecheck_statement(ast: &Ast, func: &Function, statement: &Statement, vars: 
         },
         Statement::If { branches, otherwise } => {
             for branch in branches {
-                let actual_type = get_expr_type(ast, &branch.condition, vars, builtin_funcs);
+                let actual_type = get_expression_type(ast, &branch.condition, vars, builtin_funcs);
                 let expected_type = Type::Bool;
                 if actual_type != expected_type {
                     diag::fatal!(branch.condition.clone().loc(), "expected a `{}` condition, got `{}`", expected_type, actual_type);
@@ -122,7 +117,7 @@ fn typecheck_statement(ast: &Ast, func: &Function, statement: &Statement, vars: 
         },
         Statement::While { condition, block } => {
             if let Some(condition) = condition {
-                let actual_type = get_expr_type(ast, condition, vars, builtin_funcs);
+                let actual_type = get_expression_type(ast, condition, vars, builtin_funcs);
                 let expected_type = Type::Bool;
                 if actual_type != expected_type {
                     diag::fatal!(condition.clone().loc(), "expected a `{}` condition, got `{}`", expected_type, actual_type);
@@ -141,7 +136,7 @@ fn typecheck_statement(ast: &Ast, func: &Function, statement: &Statement, vars: 
             match typ {
                 Some(typ) => {
                     if let Some(value) = value {
-                        let actual_type = get_expr_type(ast, value, vars, builtin_funcs);
+                        let actual_type = get_expression_type(ast, value, vars, builtin_funcs);
                         let expected_type = typ.clone();
                         if actual_type != expected_type {
                             diag::fatal!(value.clone().loc(), "expected expression of type `{}`, but got `{}`", expected_type, actual_type);
@@ -155,7 +150,7 @@ fn typecheck_statement(ast: &Ast, func: &Function, statement: &Statement, vars: 
                 },
                 None => {
                     if let Some(value) = value {
-                        let value_type = get_expr_type(ast, value, vars, builtin_funcs);
+                        let value_type = get_expression_type(ast, value, vars, builtin_funcs);
 
                         vars.push(Variable {
                             name: name.clone(),
@@ -168,7 +163,7 @@ fn typecheck_statement(ast: &Ast, func: &Function, statement: &Statement, vars: 
             }
         },
         Statement::Assignment { name, value } => {
-            let actual_type = get_expr_type(ast, value, vars, builtin_funcs);
+            let actual_type = get_expression_type(ast, value, vars, builtin_funcs);
             if let Some(variable) = vars.iter().find(|var| var.name == *name) {
                 let expected_type = variable.typ.clone();
                 if actual_type != expected_type {
@@ -183,8 +178,8 @@ fn typecheck_statement(ast: &Ast, func: &Function, statement: &Statement, vars: 
 }
 
 fn typecheck_binop(ast: &Ast, op: &BinaryOp, lhs: &Expr, rhs: &Expr, loc: &Loc, vars: &Vec<Variable>, builtin_funcs: &HashMap<String, Function>) {
-    let lhs_type = get_expr_type(ast, lhs, vars, builtin_funcs);
-    let rhs_type = get_expr_type(ast, rhs, vars, builtin_funcs);
+    let lhs_type = get_expression_type(ast, lhs, vars, builtin_funcs);
+    let rhs_type = get_expression_type(ast, rhs, vars, builtin_funcs);
     match op {
         BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Div | BinaryOp::Mod => {
             if lhs_type != Type::Int64 {
@@ -214,7 +209,7 @@ fn typecheck_binop(ast: &Ast, op: &BinaryOp, lhs: &Expr, rhs: &Expr, loc: &Loc, 
 }
 
 fn typecheck_unary(ast: &Ast, op: &UnaryOp, operand: &Expr, vars: &Vec<Variable>, builtin_funcs: &HashMap<String, Function>) {
-    let operand_type = get_expr_type(ast, operand, vars, builtin_funcs);
+    let operand_type = get_expression_type(ast, operand, vars, builtin_funcs);
     match op {
         UnaryOp::Negate => {
             if operand_type != Type::Int64 {
@@ -242,12 +237,12 @@ fn typecheck_expr(ast: &Ast, expr: &Expr, vars: &Vec<Variable>, builtin_funcs: &
             }
         },
         Expr::Index { collection, index, loc } => {
-            let collection_type = get_expr_type(ast, collection, vars, builtin_funcs);
+            let collection_type = get_expression_type(ast, collection, vars, builtin_funcs);
             if collection_type != Type::String {
-                diag::fatal!(loc, "only strings are accesible by index, got `{}`", collection_type)
+                diag::fatal!(loc, "type `{}` is not indexable", collection_type)
             }
 
-            let actual_index_type = get_expr_type(ast, index, vars, builtin_funcs);
+            let actual_index_type = get_expression_type(ast, index, vars, builtin_funcs);
             let expected_index_type = Type::Int64;
             if actual_index_type != Type::Int64 {
                 diag::fatal!(loc, "expected expression of type `{}` as an index, got `{}`", expected_index_type, actual_index_type);
@@ -266,7 +261,6 @@ fn typecheck_funcall(ast: &Ast, name: &str, args: &[Expr], loc: &Loc, vars: &Vec
     };
 
     check_arguments_count(name, loc, args.len(), func.params.len());
-
     for arg in args {
         typecheck_expr(ast, arg, vars, builtin_funcs, user_funcs);
     }
@@ -274,7 +268,7 @@ fn typecheck_funcall(ast: &Ast, name: &str, args: &[Expr], loc: &Loc, vars: &Vec
     for i in 0..func.params.len() {
         let arg = &args[i];
         let expected_type = &func.params[i].typ;
-        let actual_type = &get_expr_type(ast, arg, vars, builtin_funcs);
+        let actual_type = &get_expression_type(ast, arg, vars, builtin_funcs);
         if expected_type != actual_type {
             diag::fatal!(arg.clone().loc(), "mismatched arguments types. expected `{}`, but got `{}`", expected_type, actual_type);
         }
@@ -290,21 +284,41 @@ fn check_arguments_count(func_name: &str, loc: &Loc, actual: usize, expected: us
     }
 }
 
-fn check_entrypoint_declaration(ast: &Ast) {
+pub fn check_entrypoint_declaration(ast: &Ast) {
     match ast.functions.get("main") {
-        None => diag::fatal!("entry point not declared. expected: `fn main() int64`"),
         Some(func) => {
             if func.params.len() > 0 {
-                diag::fatal!("function `main` should not have parameters");
+                diag::fatal!("function `main` should not accept any parameters");
             }
             if func.ret_type != Type::Int64 {
-                diag::fatal!("unexpected main function declaration, expected `fn main() int64`");
+                diag::fatal!("expect `fn main` to return `{}`", Type::Int64);
             }
         }
+        None => diag::fatal!("undefined entry point, expected: `fn main() int64`"),
     }
 }
 
-fn get_binop_type(op: &BinaryOp) -> Type {
+fn get_expression_type(ast: &Ast, expr: &Expr, vars: &Vec<Variable>, builtin_funcs: &HashMap<String, Function>) -> Type {
+    match expr {
+        Expr::Literal { lit, .. } => get_literal_type(lit),
+        Expr::Binary { op, .. } => get_binary_operation_type(op),
+        Expr::Unary { op, .. } => get_unary_operation_type(op),
+        Expr::Funcall { name, loc, .. } => get_funcall_type(ast, name, loc, builtin_funcs),
+        Expr::Variable { name, loc } => get_variable_type(name, vars, loc),
+        Expr::Index { collection, .. } => get_index_type(ast, collection, vars, builtin_funcs),
+    }
+}
+
+fn get_literal_type(lit: &Literal) -> Type {
+    match lit {
+        Literal::Number(_) => return Type::Int64,
+        Literal::String(_) => return Type::String,
+        Literal::Bool(_) => return Type::Bool,
+        Literal::Char(_) => return Type::Char,
+    }
+}
+
+fn get_binary_operation_type(op: &BinaryOp) -> Type {
     match op {
         BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Div | BinaryOp::Mod => {
             return Type::Int64;
@@ -316,7 +330,7 @@ fn get_binop_type(op: &BinaryOp) -> Type {
     }
 }
 
-fn get_unary_type(op: &UnaryOp) -> Type {
+fn get_unary_operation_type(op: &UnaryOp) -> Type {
     match op {
         UnaryOp::Negate => {
             return Type::Int64;
@@ -324,43 +338,32 @@ fn get_unary_type(op: &UnaryOp) -> Type {
     }
 }
 
-fn get_expr_type(ast: &Ast, expr: &Expr, vars: &Vec<Variable>, builtin_funcs: &HashMap<String, Function>) -> Type {
-    match expr {
-        Expr::Literal { lit, .. } => match lit {
-            Literal::Number(_) => return Type::Int64,
-            Literal::String(_) => return Type::String,
-            Literal::Bool(_) => return Type::Bool,
-            Literal::Char(_) => return Type::Char,
-        },
-        Expr::Binary { op, .. } => {
-            return get_binop_type(op);
-        },
-        Expr::Unary { op, .. } => {
-            return get_unary_type(op);
-        },
-        Expr::Funcall { name, loc, .. } => {
-            match ast.functions.get(name) {
-                Some(func) => return func.ret_type.clone(),
-                None => {},
-            };
+fn get_funcall_type(ast: &Ast, name: &str, loc: &Loc, builtin_funcs: &HashMap<String, Function>) -> Type {
+    match ast.functions.get(name) {
+        Some(func) => return func.ret_type.clone(),
+        None => {},
+    };
 
-            match builtin_funcs.get(name) {
-                Some(func) => func.ret_type.clone(),
-                None => diag::fatal!(loc, "function `{}` not found in current scope", name),
-            }
-        },
-        Expr::Variable { name, loc } => {
-            for var in vars {
-                if var.name == *name {
-                    return var.typ.clone();
-                }
-            }
+    match builtin_funcs.get(name) {
+        Some(func) => func.ret_type.clone(),
+        None => diag::fatal!(loc, "function `{}` not found in current scope", name),
+    }
+}
 
-            diag::fatal!(loc, "variable `{}` not found in this scope", name);
-        },
-        Expr::Index { .. } => {
-            // NOTE: Assume that only strings are indexable for now. Typechecking is in typecheck_expr()
-            return Type::Char;
-        },
+fn get_variable_type(name: &str, vars: &Vec<Variable>, loc: &Loc) -> Type {
+    for var in vars {
+        if var.name == *name {
+            return var.typ.clone();
+        }
+    }
+
+    diag::fatal!(loc, "variable `{}` not found in this scope", name);
+}
+
+fn get_index_type(ast: &Ast, expr: &Expr, vars: &Vec<Variable>, builtin_funcs: &HashMap<String, Function>) -> Type {
+    let expr_type = get_expression_type(ast, expr, vars, builtin_funcs);
+    match expr_type {
+        Type::String => Type::Char,
+        _ => unreachable!(),
     }
 }
