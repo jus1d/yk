@@ -24,6 +24,7 @@ pub fn typecheck(ast: &Ast) {
                 },
             ],
             body: vec![],
+            is_public: true,
         }),
         (String::from("putc"), Function {
             name: String::from("putc"),
@@ -33,6 +34,7 @@ pub fn typecheck(ast: &Ast) {
                 typ: Type::Char,
             }],
             body: vec![],
+            is_public: true,
         }),
         (String::from("puti"), Function {
             name: String::from("puti"),
@@ -42,6 +44,7 @@ pub fn typecheck(ast: &Ast) {
                 typ: Type::Int64,
             }],
             body: vec![],
+            is_public: true,
         }),
         (String::from("exit"), Function {
             name: String::from("exit"),
@@ -51,6 +54,7 @@ pub fn typecheck(ast: &Ast) {
                 typ: Type::Int64,
             }],
             body: vec![],
+            is_public: true,
         }),
         (String::from("strlen"), Function {
             name: String::from("strlen"),
@@ -60,6 +64,7 @@ pub fn typecheck(ast: &Ast) {
                 typ: Type::String,
             }],
             body: vec![],
+            is_public: true,
         }),
     ]);
 
@@ -131,6 +136,10 @@ fn typecheck_statement(ast: &Ast, func: &Function, statement: &Statement, vars: 
         Statement::Declaration { name, typ, value } => {
             if KEYWORDS.contains(&name.as_str()) {
                 diag::fatal!("variable name collides with reserved keyword `{}`", name);
+            }
+
+            if ast.functions.get(name).is_some() {
+                diag::fatal!("variable name collides with defined function `{}`", name);
             }
 
             match typ {

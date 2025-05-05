@@ -8,7 +8,7 @@ use std::iter::Peekable;
 use std::process::Command;
 
 pub const KEYWORDS: &[&'static str] = &[
-    "fn", "ret",
+    "pub", "fn", "ret",
     "if", "else", "while",
     "true", "false",
 ];
@@ -24,6 +24,7 @@ pub struct Function {
     pub ret_type: Type,
     pub params: Vec<Variable>,
     pub body: Vec<Statement>,
+    pub is_public: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -165,8 +166,13 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
             match token.kind {
                 TokenKind::Word => {
                     match token.text.as_str() {
+                        "pub" => {
+                            self.expect_word("fn");
+                            let func = self.parse_function(true);
+                            ast.functions.insert(func.name.clone(), func);
+                        },
                         "fn" => {
-                            let func = self.parse_function();
+                            let func = self.parse_function(false);
                             ast.functions.insert(func.name.clone(), func);
                         },
                         "include" => {
@@ -235,7 +241,9 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                             let included_ast = parser.parse_ast();
 
                             for (name, func) in included_ast.functions {
-                                ast.functions.insert(name, func);
+                                if func.is_public {
+                                    ast.functions.insert(name, func);
+                                }
                             }
 
                             self.expect(TokenKind::Semicolon);
@@ -280,7 +288,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
         }
     }
 
-    pub fn parse_function(&mut self) -> Function {
+    pub fn parse_function(&mut self, is_public: bool) -> Function {
         let name = self.tokens.next().unwrap();
         if name.kind != TokenKind::Word {
             diag::fatal!(name.loc, "unexpected token. expected `word`, got {}", name.kind);
@@ -319,6 +327,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                         ret_type: Type::Void,
                         params,
                         body,
+                        is_public,
                     };
                 },
                 TokenKind::OpenCurly => {
@@ -329,6 +338,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                         ret_type: Type::Void,
                         params,
                         body,
+                        is_public,
                     };
                 }
                 TokenKind::Word | TokenKind::Exclamation => {
@@ -350,6 +360,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                             ret_type: return_type,
                             params,
                             body,
+                            is_public,
                         };
                     }
 
@@ -359,6 +370,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                         ret_type: return_type,
                         params,
                         body,
+                        is_public,
                     };
                 }
                 other => diag::fatal!(token.loc, "expected block or return type, got {}", other),
@@ -667,6 +679,17 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
             Some(token) => {
                 if token.kind != kind {
                     diag::fatal!(token.loc, "expected token kind `{}`, got `{}`", kind, token.kind)
+                };
+            }
+        }
+    }
+
+    fn expect_word(&mut self, word: &str) {
+        match self.tokens.next() {
+            None => diag::fatal!("expected token `{}`, got EOF", word),
+            Some(token) => {
+                if token.kind != TokenKind::Word || token.text != word {
+                    diag::fatal!(token.loc, "expected token `{}`, got `{}`", word, token.text)
                 };
             }
         }

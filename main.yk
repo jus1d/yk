@@ -1,5 +1,6 @@
-fn neg(int64 a) int64 => -a;
+include "std.yk";
 
 fn main() int64 {
-    ret neg(-(34 + 35));
+    let main = 69;
+    ret main;
 }
