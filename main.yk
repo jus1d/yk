@@ -1,6 +1,3 @@
-include "std.yk";
-
 fn main() int64 {
-    let main = 69;
-    ret main;
+    ret 0;
 }

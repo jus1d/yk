@@ -191,11 +191,9 @@ impl<'a> Generator<'a> {
             }
             Statement::Declaration { name, value, .. } => {
                 scope.push(name.clone());
-                if let Some(expr) = value {
-                    self.write_expression(expr, scope, current_func, 8)?;
-                    self.c(&format!("declaration: {} = {}", name, expr), true)?;
-                    writeln!(self.out, "    str     x8, [x29, {}]", 16 + get_variable_position(name, scope) * 8)?;
-                }
+                self.write_expression(value, scope, current_func, 8)?;
+                self.c(&format!("declaration: {} = {}", name, value), true)?;
+                writeln!(self.out, "    str     x8, [x29, {}]", 16 + get_variable_position(name, scope) * 8)?;
             }
             Statement::Assignment { name, value } => {
                 self.write_expression(value, scope, current_func, 8)?;

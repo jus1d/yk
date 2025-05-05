@@ -67,7 +67,7 @@ pub enum Statement {
     Declaration {
         name: String,
         typ: Option<Type>,
-        value: Option<Expr>,
+        value: Expr,
     },
     Assignment {
         name: String,
@@ -609,23 +609,24 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                                         }
                                     };
 
-                                    if typ == Type::Never {
+                                    if typ == Type::Never || typ == Type::Void {
                                         diag::fatal!(token.loc, "cannot declare variable with `{}` type", typ);
                                     }
 
                                     if self.tokens.next_if(|token| token.kind == TokenKind::Semicolon).is_some() {
-                                        return Statement::Declaration { name, typ: Some(typ), value: None };
+                                        let value = get_zero_value(typ.clone(), Loc::unused());
+                                        return Statement::Declaration { name, typ: Some(typ), value };
                                     }
 
                                     self.expect(TokenKind::Equals);
                                     let value = self.parse_expression();
                                     self.expect(TokenKind::Semicolon);
-                                    return Statement::Declaration { name, typ: Some(typ), value: Some(value) };
+                                    return Statement::Declaration { name, typ: Some(typ), value };
                                 },
                                 TokenKind::Equals => {
                                     let value = self.parse_expression();
                                     self.expect(TokenKind::Semicolon);
-                                    return Statement::Declaration { name, typ: None, value: Some(value) };
+                                    return Statement::Declaration { name, typ: None, value };
                                 },
                                 TokenKind::Semicolon => diag::fatal!(token.loc, "cannot know type of variable at compile time, specify type annotation or assign a value"),
                                 _ => diag::fatal!(token.loc, "expected `{}` or `{}`, got `{}`", TokenKind::Colon, TokenKind::Equals, token.text),
@@ -817,4 +818,14 @@ pub fn get_primitive_type(typ: &str) -> Option<Type> {
     }
 }
 
+fn get_zero_value(typ: Type, loc: Loc) -> Expr {
+    match typ {
+        Type::Int64 => Expr::Literal { lit: Literal::Number(0), loc },
+        Type::String => Expr::Literal { lit: Literal::String(String::new()), loc },
+        Type::Char => Expr::Literal { lit: Literal::Char('\0'), loc },
+        Type::Bool => Expr::Literal { lit: Literal::Bool(false), loc },
+        Type::Never => unreachable!(),
+        Type::Void => unreachable!(),
+    }
+}
 // TODO: Introduce support for constants

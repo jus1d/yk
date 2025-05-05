@@ -42,9 +42,7 @@ fn precompute_statement(statement: &mut Statement) {
             }
         },
         Statement::Declaration { value, .. } => {
-            if let Some(expr) = value {
-                precompute_expression(expr);
-            }
+            precompute_expression(value);
         },
         Statement::Assignment { value, .. } => {
             precompute_expression(value);
@@ -194,9 +192,7 @@ fn mark_unused_functions_statement(ast: &Ast, statement: &Statement, used_funcs:
             }
         },
         Statement::Declaration { name: _, typ: _, value } => {
-            if let Some(expr) = value {
-                mark_unused_functions_expression(ast, expr, used_funcs, visited);
-            }
+            mark_unused_functions_expression(ast, value, used_funcs, visited);
         },
         Statement::Assignment { name: _, value } => {
             mark_unused_functions_expression(ast, value, used_funcs, visited);

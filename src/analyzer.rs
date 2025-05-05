@@ -144,12 +144,10 @@ fn typecheck_statement(ast: &Ast, func: &Function, statement: &Statement, vars: 
 
             match typ {
                 Some(typ) => {
-                    if let Some(value) = value {
-                        let actual_type = get_expression_type(ast, value, vars, builtin_funcs);
-                        let expected_type = typ.clone();
-                        if actual_type != expected_type {
-                            diag::fatal!(value.clone().loc(), "expected expression of type `{}`, but got `{}`", expected_type, actual_type);
-                        }
+                    let actual_type = get_expression_type(ast, value, vars, builtin_funcs);
+                    let expected_type = typ.clone();
+                    if actual_type != expected_type {
+                        diag::fatal!(value.clone().loc(), "expected expression of type `{}`, but got `{}`", expected_type, actual_type);
                     }
 
                     vars.push(Variable {
@@ -158,16 +156,12 @@ fn typecheck_statement(ast: &Ast, func: &Function, statement: &Statement, vars: 
                     });
                 },
                 None => {
-                    if let Some(value) = value {
-                        let value_type = get_expression_type(ast, value, vars, builtin_funcs);
+                    let value_type = get_expression_type(ast, value, vars, builtin_funcs);
 
-                        vars.push(Variable {
-                            name: name.clone(),
-                            typ: value_type,
-                        });
-                    } else {
-                        diag::fatal!("type of variable `{}` must be known at compile time. provide either type annotation, or assign value", name)
-                    }
+                    vars.push(Variable {
+                        name: name.clone(),
+                        typ: value_type,
+                    });
                 },
             }
         },

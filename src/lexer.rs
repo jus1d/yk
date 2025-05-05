@@ -135,6 +135,16 @@ impl Loc {
             col,
         }
     }
+
+    // NOTE: Use this function, only if you SURE that this location will never used.
+    // For example in syntactical sugar, that isn't reported for user
+    pub fn unused() -> Self {
+        Loc {
+            filename: String::new(),
+            line: 0,
+            col: 0,
+        }
+    }
 }
 
 impl fmt::Display for Loc {
