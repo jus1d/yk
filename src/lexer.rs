@@ -48,9 +48,7 @@ pub enum TokenKind {
 
 impl fmt::Display for TokenKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}",
+        write!(f, "{}",
             match self {
                 TokenKind::Word => "word",
                 TokenKind::Number => "number",
