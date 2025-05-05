@@ -1,5 +1,5 @@
 fn neg(int64 a) int64 => -a;
 
 fn main() int64 {
-    ret neg(-69);
+    ret neg(-(34 + 35));
 }

@@ -10,6 +10,123 @@ pub fn precompute_expressions(ast: &mut Ast) {
     });
 }
 
+fn precompute_statement(statement: &mut Statement) {
+    match statement {
+        Statement::Ret { value } => {
+            if let Some(expr) = value {
+                precompute_expression(expr);
+            }
+        },
+        Statement::If { branches, otherwise } => {
+            for branch in branches.iter_mut() {
+                precompute_expression(&mut branch.condition);
+                for statement in &mut branch.block {
+                    precompute_statement(statement);
+                }
+            }
+            for statement in otherwise {
+                precompute_statement(statement);
+            }
+        },
+        Statement::While { condition, block } => {
+            if let Some(expr) = condition {
+                precompute_expression(expr);
+            }
+            for statement in block {
+                precompute_statement(statement);
+            }
+        },
+        Statement::Funcall { args, .. } => {
+            for expr in args {
+                precompute_expression(expr);
+            }
+        },
+        Statement::Declaration { value, .. } => {
+            if let Some(expr) = value {
+                precompute_expression(expr);
+            }
+        },
+        Statement::Assignment { value, .. } => {
+            precompute_expression(value);
+        },
+    };
+}
+
+fn precompute_expression(expr: &mut Expr) {
+    match expr {
+        Expr::Variable { .. } => {},
+        Expr::Literal { .. } => {},
+        Expr::Funcall { args, .. } => {
+            for arg in args {
+                precompute_expression(arg);
+            }
+        },
+        Expr::Binary { op, lhs, rhs, loc } => {
+            precompute_expression(lhs);
+            precompute_expression(rhs);
+
+            if !is_binary_precomputable(op) {
+                return;
+            }
+
+            if let (Expr::Literal { .. }, Expr::Literal { .. }) = (lhs.as_ref(), rhs.as_ref()) {
+                if let Some(evaluated_expr) = evaluate_binary(op, lhs, rhs, loc) {
+                    *expr = evaluated_expr;
+                }
+            }
+        },
+        Expr::Unary { op, operand, loc } => {
+            precompute_expression(operand);
+            if let Some(evaluated_expr) = evaluate_unary(op, operand, loc) {
+                *expr = evaluated_expr;
+            }
+        },
+        Expr::Index { collection, index, .. } => {
+            precompute_expression(collection);
+            precompute_expression(index);
+        },
+    }
+}
+
+fn is_binary_precomputable(op: &BinaryOp) -> bool {
+    matches!(op, BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Div)
+}
+
+fn evaluate_unary(op: &UnaryOp, operand: &Expr, loc: &Loc) -> Option<Expr> {
+    match get_integer_value(operand) {
+        Some(value) => match op {
+            UnaryOp::Negate => {
+                Some(Expr::Literal { lit: Literal::Number(-value), loc: loc.clone() })
+            }
+        },
+        _ => None
+    }
+}
+
+fn evaluate_binary(op: &BinaryOp, lhs: &Expr, rhs: &Expr, loc: &Loc) -> Option<Expr> {
+    match (get_integer_value(lhs), get_integer_value(rhs)) {
+        (Some(l), Some(r)) => {
+            let value = match op {
+                BinaryOp::Add => l + r,
+                BinaryOp::Sub => l - r,
+                BinaryOp::Mul => l * r,
+                BinaryOp::Div => l / r,
+                _ => unreachable!(),
+            };
+            Some(Expr::Literal { lit: Literal::Number(value), loc: loc.clone() })
+        }
+        _ => None,
+    }
+}
+
+fn get_integer_value(expr: &Expr) -> Option<i64> {
+    if let Expr::Literal { lit: Literal::Number(value), .. } = expr {
+        Some(*value)
+    } else {
+        None
+    }
+}
+
 pub fn eliminate_unused_functions(ast: &mut Ast) {
     let main = match ast.functions.get("main") {
         Some(func) => func,
@@ -118,107 +235,5 @@ fn mark_unused_functions_expression(ast: &Ast, expr: &Expr, used_funcs: &mut Has
             mark_unused_functions_expression(ast, collection, used_funcs, visited);
             mark_unused_functions_expression(ast, index, used_funcs, visited);
         }
-    }
-}
-
-fn precompute_statement(statement: &mut Statement) {
-    match statement {
-        Statement::Ret { value } => {
-            if let Some(expr) = value {
-                precompute_expr(expr);
-            }
-        },
-        Statement::If { branches, otherwise } => {
-            for branch in branches.iter_mut() {
-                precompute_expr(&mut branch.condition);
-                for statement in &mut branch.block {
-                    precompute_statement(statement);
-                }
-            }
-            for statement in otherwise {
-                precompute_statement(statement);
-            }
-        },
-        Statement::While { condition, block } => {
-            if let Some(expr) = condition {
-                precompute_expr(expr);
-            }
-            for statement in block {
-                precompute_statement(statement);
-            }
-        },
-        Statement::Funcall { args, .. } => {
-            for expr in args {
-                precompute_expr(expr);
-            }
-        },
-        Statement::Declaration { value, .. } => {
-            if let Some(expr) = value {
-                precompute_expr(expr);
-            }
-        },
-        Statement::Assignment { value, .. } => {
-            precompute_expr(value);
-        },
-    };
-}
-
-fn precompute_expr(expr: &mut Expr) {
-    if let Expr::Binary { op, lhs, rhs, loc } = expr {
-        precompute_expr(lhs);
-        precompute_expr(rhs);
-
-        if !is_binary_precomputable(op) {
-            return;
-        }
-
-        if let (Expr::Literal { .. }, Expr::Literal { .. }) = (lhs.as_ref(), rhs.as_ref()) {
-            if let Some(evaluated_expr) = evaluate_binary(op, lhs, rhs, loc) {
-                *expr = evaluated_expr;
-            }
-        }
-    } else if let Expr::Unary { op, operand, loc } = expr {
-        if let Some(evaluated_expr) = evaluate_unary(op, operand, loc) {
-            *expr = evaluated_expr;
-        }
-    }
-}
-
-fn is_binary_precomputable(op: &BinaryOp) -> bool {
-    matches!(op, BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Div)
-}
-
-fn evaluate_unary(op: &UnaryOp, operand: &Expr, loc: &Loc) -> Option<Expr> {
-    match get_integer_value(operand) {
-        Some(value) => match op {
-            UnaryOp::Negate => {
-                Some(Expr::Literal { lit: Literal::Number(-value), loc: loc.clone() })
-            }
-        },
-        _ => None
-    }
-}
-
-fn evaluate_binary(op: &BinaryOp, lhs: &Expr, rhs: &Expr, loc: &Loc) -> Option<Expr> {
-    match (get_integer_value(lhs), get_integer_value(rhs)) {
-        (Some(l), Some(r)) => {
-            let value = match op {
-                BinaryOp::Add => l + r,
-                BinaryOp::Sub => l - r,
-                BinaryOp::Mul => l * r,
-                BinaryOp::Div => l / r,
-                _ => unreachable!(),
-            };
-            Some(Expr::Literal { lit: Literal::Number(value), loc: loc.clone() })
-        }
-        _ => None,
-    }
-}
-
-fn get_integer_value(expr: &Expr) -> Option<i64> {
-    if let Expr::Literal { lit: Literal::Number(value), .. } = expr {
-        Some(*value)
-    } else {
-        None
     }
 }

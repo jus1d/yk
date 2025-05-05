@@ -13,6 +13,10 @@ fn main() {
     let args = std::env::args();
     let opts = Opts::parse_args(args);
 
+    if opts.disable_analyzing && opts.enable_optimization {
+        diag::fatal!("cannot enable optimizations, if `--unsafe` used")
+    }
+
     let source = fs::read_to_string(&opts.input_path).unwrap_or_else(|_| {
         diag::fatal!("failed to read from file '{}'", opts.input_path);
     });
