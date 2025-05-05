@@ -1,9 +1,7 @@
 // TODO: Factor out `fd` to write (stdout, stderr) into constants
 
 // fputs: prints a string buffer into `fd`
-fn fputs(int64 fd, string buf) int64 {
-    ret write(fd, buf, strlen(buf));
-}
+fn fputs(int64 fd, string buf) int64 => write(fd, buf, strlen(buf));
 
 // puts: prints string buffer into `stdout`
 fn puts(string buf) {

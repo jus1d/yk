@@ -306,6 +306,21 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
 
         match self.tokens.peek() {
             Some(token) => match token.kind {
+                TokenKind::FatArrow => {
+                    self.expect(TokenKind::FatArrow);
+                    let expr = self.parse_expression();
+                    self.expect(TokenKind::Semicolon);
+
+                    let mut body = Vec::new();
+                    body.push(Statement::Ret { value: Some(expr) });
+
+                    return Function {
+                        name: name.text,
+                        ret_type: Type::Void,
+                        params,
+                        body,
+                    };
+                },
                 TokenKind::OpenCurly => {
                     let body = self.parse_block();
 
@@ -322,6 +337,21 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                         Some(typ) => typ,
                         None => diag::fatal!(return_type_token.loc, "unknown return type `{}`", return_type_token.text),
                     };
+
+                    if self.tokens.next_if(|token| token.kind == TokenKind::FatArrow).is_some() {
+                        let expr = self.parse_expression();
+                        self.expect(TokenKind::Semicolon);
+
+                        let mut body = Vec::new();
+                        body.push(Statement::Ret { value: Some(expr) });
+
+                        return Function {
+                            name: name.text,
+                            ret_type: return_type,
+                            params,
+                            body,
+                        };
+                    }
 
                     let body = self.parse_block();
                     return Function {
@@ -633,10 +663,10 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
 
     fn expect(&mut self, kind: TokenKind) {
         match self.tokens.next() {
-            None => diag::fatal!("expected token of kind {}, got EOF", kind),
+            None => diag::fatal!("expected token kind `{}`, got EOF", kind),
             Some(token) => {
                 if token.kind != kind {
-                    diag::fatal!(token.loc, "expected token {}, got {}", kind, token.kind)
+                    diag::fatal!(token.loc, "expected token kind `{}`, got `{}`", kind, token.kind)
                 };
             }
         }

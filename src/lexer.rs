@@ -42,6 +42,8 @@ pub enum TokenKind {
     DoubleAmpersand,
     Pipe,
     DoublePipe,
+
+    FatArrow,
 }
 
 impl fmt::Display for TokenKind {
@@ -80,6 +82,7 @@ impl fmt::Display for TokenKind {
                 TokenKind::DoublePipe => "||",
                 TokenKind::Ampersand => "&",
                 TokenKind::DoubleAmpersand => "&&",
+                TokenKind::FatArrow => "=>",
             }
         )
     }
@@ -316,6 +319,9 @@ impl<Chars: Iterator<Item = char> + Clone> Iterator for Lexer<Chars> {
                 return Some(Token::with_text(TokenKind::Less, "<", loc));
             },
             '=' => {
+                if self.chars.next_if(|ch| *ch == '>').is_some() {
+                    return Some(Token::with_text(TokenKind::FatArrow, "=>", loc));
+                }
                 if self.chars.next_if(|ch| *ch == '=').is_some() {
                     return Some(Token::with_text(TokenKind::EqualEqual, "==", loc));
                 }
