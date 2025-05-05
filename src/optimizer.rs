@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use crate::diag;
 use crate::lexer::Loc;
-use crate::parser::{Ast, BinaryOp, Expr, Literal, Statement};
+use crate::parser::{Ast, BinaryOp, Expr, Literal, Statement, UnaryOp};
 
 pub fn precompute_expressions(ast: &mut Ast) {
     ast.functions.values_mut().for_each(|func| {
@@ -10,11 +10,7 @@ pub fn precompute_expressions(ast: &mut Ast) {
     });
 }
 
-pub fn eliminate_deadcode(ast: &mut Ast) {
-    eliminate_unused_functions(ast);
-}
-
-fn eliminate_unused_functions(ast: &mut Ast) {
+pub fn eliminate_unused_functions(ast: &mut Ast) {
     let main = match ast.functions.get("main") {
         Some(func) => func,
         None => diag::fatal!("no `main` function found"),
@@ -172,21 +168,38 @@ fn precompute_expr(expr: &mut Expr) {
         precompute_expr(lhs);
         precompute_expr(rhs);
 
-        if !is_precomputable(op) {
+        if !is_binary_precomputable(op) {
             return;
         }
 
         if let (Expr::Literal { .. }, Expr::Literal { .. }) = (lhs.as_ref(), rhs.as_ref()) {
-            *expr = evaluate_integer(op, lhs, rhs, loc);
+            if let Some(evaluated_expr) = evaluate_binary(op, lhs, rhs, loc) {
+                *expr = evaluated_expr;
+            }
+        }
+    } else if let Expr::Unary { op, operand, loc } = expr {
+        if let Some(evaluated_expr) = evaluate_unary(op, operand, loc) {
+            *expr = evaluated_expr;
         }
     }
 }
 
-fn is_precomputable(op: &BinaryOp) -> bool {
+fn is_binary_precomputable(op: &BinaryOp) -> bool {
     matches!(op, BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Div)
 }
 
-fn evaluate_integer(op: &BinaryOp, lhs: &Expr, rhs: &Expr, loc: &Loc) -> Expr {
+fn evaluate_unary(op: &UnaryOp, operand: &Expr, loc: &Loc) -> Option<Expr> {
+    match get_integer_value(operand) {
+        Some(value) => match op {
+            UnaryOp::Negate => {
+                Some(Expr::Literal { lit: Literal::Number(-value), loc: loc.clone() })
+            }
+        },
+        _ => None
+    }
+}
+
+fn evaluate_binary(op: &BinaryOp, lhs: &Expr, rhs: &Expr, loc: &Loc) -> Option<Expr> {
     match (get_integer_value(lhs), get_integer_value(rhs)) {
         (Some(l), Some(r)) => {
             let value = match op {
@@ -196,14 +209,9 @@ fn evaluate_integer(op: &BinaryOp, lhs: &Expr, rhs: &Expr, loc: &Loc) -> Expr {
                 BinaryOp::Div => l / r,
                 _ => unreachable!(),
             };
-            Expr::Literal { lit: Literal::Number(value), loc: loc.clone() }
+            Some(Expr::Literal { lit: Literal::Number(value), loc: loc.clone() })
         }
-        _ => Expr::Binary {
-            op: op.clone(),
-            lhs: Box::new(lhs.clone()),
-            rhs: Box::new(rhs.clone()),
-            loc: loc.clone(),
-        },
+        _ => None,
     }
 }
 

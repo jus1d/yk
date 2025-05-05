@@ -28,7 +28,7 @@ fn main() {
 
     if opts.enable_optimization {
         optimizer::precompute_expressions(&mut ast);
-        optimizer::eliminate_deadcode(&mut ast);
+        optimizer::eliminate_unused_functions(&mut ast);
     }
 
     let compiler = compiler::Compiler::new(ast);
