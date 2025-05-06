@@ -2,6 +2,7 @@ use crate::lexer::{self, Loc, Token, TokenKind};
 use crate::diag;
 
 use std::collections::HashMap;
+use std::num::IntErrorKind;
 use std::path::{Path, PathBuf};
 use std::{fmt, fs};
 use std::iter::Peekable;
@@ -15,7 +16,15 @@ pub const KEYWORDS: &[&'static str] = &[
 
 #[derive(Clone, Debug)]
 pub struct Ast {
-    pub functions: HashMap<String, Function>
+    pub functions: HashMap<String, Function>,
+    pub structs: Vec<StructDefinition>,
+}
+
+#[allow(dead_code)]
+#[derive(Clone, Debug)]
+pub struct StructDefinition {
+    name: String,
+    members: Vec<Variable>,
 }
 
 #[derive(Clone, Debug)]
@@ -160,6 +169,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
     pub fn parse_ast(&mut self) -> Ast {
         let mut ast = Ast {
             functions: HashMap::new(),
+            structs: Vec::new(),
         };
 
         while let Some(token) = self.tokens.next() {
@@ -174,6 +184,44 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                         "fn" => {
                             let func = self.parse_function(false);
                             ast.functions.insert(func.name.clone(), func);
+                        },
+                        "struct" => {
+                            let struct_name_token = if let Some(token) = self.tokens.next() {
+                                if token.kind != TokenKind::Word {
+                                    diag::fatal!(token.loc, "expected identifier, got `{}`", token.kind);
+                                }
+                                token
+                            } else {
+                                diag::fatal!("expected struct name, got EOF");
+                            };
+
+                            let mut members: Vec<Variable> = Vec::new();
+
+                            self.expect(TokenKind::OpenCurly);
+
+                            loop {
+                                if let Some(_) = self.tokens.next_if(|token| token.kind == TokenKind::CloseCurly) {
+                                    break;
+                                }
+
+                                let type_token = self.tokens.next().unwrap();
+                                let member_name = self.tokens.next().unwrap();
+                                let typ = get_primitive_type(&type_token.text).unwrap();
+
+                                members.push(Variable { name: member_name.text, typ });
+
+                                match self.tokens.next().unwrap().kind {
+                                    TokenKind::Comma => continue,
+                                    TokenKind::CloseCurly => break,
+                                    kind => diag::fatal!("expected `,` ot `}}` after member definition, got `{}`", kind)
+                                }
+                            }
+
+                            let strct = StructDefinition {
+                                name: struct_name_token.text,
+                                members,
+                            };
+                            ast.structs.push(strct);
                         },
                         "include" => {
                             let include_path_token = match self.tokens.next() {
@@ -674,15 +722,36 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
         }
     }
 
-    fn expect(&mut self, kind: TokenKind) {
-        match self.tokens.next() {
-            None => diag::fatal!("expected token kind `{}`, got EOF", kind),
-            Some(token) => {
-                if token.kind != kind {
-                    diag::fatal!(token.loc, "expected token kind `{}`, got `{}`", kind, token.kind)
-                };
+    fn expect_tokens(&mut self, kinds: &[TokenKind]) -> Token {
+        let n = kinds.len();
+        let mut expected_tokens = String::new();
+        for (i, kind) in kinds.iter().enumerate() {
+            if i == n-2 {
+                expected_tokens.push_str(&format!("or `{}`", kind));
+            } else {
+                expected_tokens.push_str(&format!("`{}`", kind));
+                if i != n-1 {
+                    expected_tokens.push_str(", ");
+                }
             }
         }
+
+        let token = self.tokens.next();
+        match token {
+            Some(token) => {
+                for kind in kinds {
+                    if token.kind == *kind {
+                        return token;
+                    }
+                }
+                diag::fatal!("expected {}, got `{}`", expected_tokens, token.kind)
+            },
+            None => diag::fatal!("expected {}, got EOF", expected_tokens),
+        }
+    }
+
+    fn expect(&mut self, kind: TokenKind) -> Token {
+        return self.expect_tokens(&[kind]);
     }
 
     fn expect_word(&mut self, word: &str) {
