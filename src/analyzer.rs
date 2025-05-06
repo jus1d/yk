@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
-use crate::lexer::Loc;
-use crate::parser::{Ast, BinaryOp, Expr, Function, Literal, Statement, Type, UnaryOp, Variable, KEYWORDS};
+use crate::lexer::{Loc, KEYWORDS};
+use crate::parser::{Ast, BinaryOp, Expr, Function, Literal, Statement, Type, UnaryOp, Variable};
 use crate::diag;
 
 pub fn typecheck(ast: &Ast) {

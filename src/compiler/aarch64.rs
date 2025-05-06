@@ -9,7 +9,7 @@ pub struct Generator<'a> {
     out: Vec<u8>,
     ast: &'a Ast,
     // NOTE: Used BTreeSet instead of HashSet, 'cause unlike HashSet, it's ordered
-    strings: BTreeSet<String>,
+    strings: Vec<String>,
     label_counter: usize,
     emit_comments: bool,
     builtins_used: BTreeSet<String>,
@@ -20,7 +20,7 @@ impl<'a> Generator<'a> {
         Self {
             out: Vec::new(),
             ast,
-            strings: BTreeSet::new(),
+            strings: Vec::new(),
             label_counter: 0,
             emit_comments,
             builtins_used: BTreeSet::new(),
@@ -229,12 +229,14 @@ impl<'a> Generator<'a> {
                 writeln!(self.out, "    mov     x{}, {}", target_register_index, n)?;
             }
             Literal::String(text) => {
-                let idx = if let Some(idx) = self.strings.iter().position(|s| s == text) {
-                    idx
-                } else {
-                    self.strings.len()
+                let idx = match self.strings.iter().position(|s| s == text) {
+                    Some(idx) => idx,
+                    None => {
+                        self.strings.push(text.clone());
+                        self.strings.len() - 1
+                    },
                 };
-                self.strings.insert(text.clone());
+
                 self.c(&format!("string: \"{}\"", text.replace("\n", "\\n")), true)?;
                 writeln!(self.out, "    adrp    x{}, string.{}@PAGE", target_register_index, idx)?;
                 writeln!(self.out, "    add     x{}, x{}, string.{}@PAGEOFF", target_register_index, target_register_index, idx)?;

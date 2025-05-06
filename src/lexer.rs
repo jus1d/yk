@@ -5,9 +5,16 @@ use std::fmt;
 use std::iter::Peekable;
 use std::path::Path;
 
+pub const KEYWORDS: &[&str] = &[
+    "include", "pub", "fn", "struct",
+    "let", "ret", "if", "else", "while",
+    "true", "false",
+];
+
 #[derive(PartialEq, Eq, Clone, Copy)]
 pub enum TokenKind {
-    Word,
+    Keyword,
+    Identifier,
     Number,
     String,
     Char,
@@ -50,7 +57,8 @@ impl fmt::Display for TokenKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}",
             match self {
-                TokenKind::Word => "word",
+                TokenKind::Keyword => "keyword",
+                TokenKind::Identifier => "identifier",
                 TokenKind::Number => "number",
                 TokenKind::String => "string",
                 TokenKind::Char => "char",
@@ -278,7 +286,14 @@ impl<Chars: Iterator<Item = char> + Clone> Iterator for Lexer<Chars> {
                 return Some(Token::with_number(TokenKind::Number, number, loc));
             }
 
-            return Some(Token::with_text(TokenKind::Word, &text, loc));
+            if KEYWORDS.contains(&text.as_str()) {
+                return Some(Token::with_text(TokenKind::Keyword, &text, loc));
+            }
+            if is_identifier(&text) {
+                return Some(Token::with_text(TokenKind::Identifier, &text, loc));
+            }
+
+            diag::fatal!(loc, "cannot parse token as identifier: `{}`", text);
         }
 
         match ch {
@@ -344,4 +359,17 @@ impl<Chars: Iterator<Item = char> + Clone> Iterator for Lexer<Chars> {
             _ => diag::fatal!(loc, "unexpected character `{}`", ch),
         }
     }
+}
+
+fn is_identifier(s: &str) -> bool {
+    let first = match s.chars().next() {
+        Some(ch) => ch,
+        None => return false,
+    };
+
+    if !(first.is_alphabetic() || first == '_') {
+        return false;
+    }
+
+    s.chars().all(|c| c.is_alphanumeric() || c == '_')
 }
