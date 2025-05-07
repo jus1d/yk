@@ -60,13 +60,16 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
 
     fn parse_function(&mut self) -> Function {
         self.expect_keyword("fn");
-        let name = self.tokens.next().unwrap();
-        if name.kind != TokenKind::Identifier {
-            diag::fatal!(name.loc, "expected identifier, got `{}`", name.text);
+        let name_token = match self.tokens.next() {
+            None => diag::fatal!("expected identifier, but got EOF"),
+            Some(token) => token,
+        };
+        if name_token.kind != TokenKind::Identifier {
+            diag::fatal!(name_token.loc, "expected identifier, got `{}`", name_token.text);
         }
 
-        if KEYWORDS.contains(&name.text.as_str()) {
-            diag::fatal!(name.loc, "function name collides with reserved keyword `{}`", name.text);
+        if KEYWORDS.contains(&name_token.text.as_str()) {
+            diag::fatal!(name_token.loc, "function name collides with reserved keyword `{}`", name_token.text);
         }
 
         self.expect(TokenKind::OpenParen);
@@ -74,16 +77,31 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
         let mut params = Vec::new();
 
         if self.tokens.next_if(|t| t.kind == TokenKind::CloseParen).is_none() {
-            params.push(self.parse_param().unwrap());
+            loop {
+                params.push(self.parse_type_and_name());
 
-            while self.tokens.next_if(|t| t.kind == TokenKind::Comma).is_some() {
-                params.push(self.parse_param().unwrap());
+                match self.tokens.next() {
+                    None => diag::fatal!("expected either comma or close paren, but got EOF"),
+                    Some(token) => match token.kind {
+                        TokenKind::Comma => continue,
+                        TokenKind::CloseParen => break,
+                        _ => diag::fatal!("expected either comma or close paren, but got `{}`", token.text),
+                    }
+                }
             }
-
-            self.expect(TokenKind::CloseParen);
         }
 
+        let return_type = if let Some(token) = self.tokens.next_if(|token| token.kind == TokenKind::Identifier || token.kind == TokenKind::Exclamation) {
+            match get_primitive_type(&token.text) {
+                None => diag::fatal!(token.loc, "unknown type `{}`", token.text),
+                Some(typ) => typ,
+            }
+        } else {
+            Type::Void
+        };
+
         match self.tokens.peek() {
+            None => diag::fatal!("expected function body or return type, but got EOF"),
             Some(token) => match token.kind {
                 TokenKind::FatArrow => {
                     self.expect(TokenKind::FatArrow);
@@ -94,85 +112,53 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                     body.push(Statement::Ret { value: Some(expr) });
 
                     return Function {
-                        name: name.text,
-                        ret_type: Type::Void,
+                        name: name_token.text,
+                        ret_type: return_type,
                         params,
                         body,
                     };
                 },
-                TokenKind::OpenCurly => {
+                _ => {
                     let body = self.parse_block();
 
                     return Function {
-                        name: name.text,
-                        ret_type: Type::Void,
-                        params,
-                        body,
-                    };
-                }
-                TokenKind::Identifier | TokenKind::Exclamation => {
-                    let return_type_token = self.tokens.next().unwrap();
-                    let return_type = match get_primitive_type(&return_type_token.text) {
-                        Some(typ) => typ,
-                        None => diag::fatal!(return_type_token.loc, "unknown return type `{}`", return_type_token.text),
-                    };
-
-                    if self.tokens.next_if(|token| token.kind == TokenKind::FatArrow).is_some() {
-                        let expr = self.parse_expression();
-                        self.expect(TokenKind::Semicolon);
-
-                        let mut body = Vec::new();
-                        body.push(Statement::Ret { value: Some(expr) });
-
-                        return Function {
-                            name: name.text,
-                            ret_type: return_type,
-                            params,
-                            body,
-                        };
-                    }
-
-                    let body = self.parse_block();
-                    return Function {
-                        name: name.text,
+                        name: name_token.text,
                         ret_type: return_type,
                         params,
                         body,
                     };
                 }
-                other => diag::fatal!(token.loc, "expected block or return type, got `{}`", other),
             },
-            None => diag::fatal!("error: expected block or return type, got EOF"),
         }
     }
 
-    pub fn parse_param(&mut self) -> Option<Variable> {
-        match self.tokens.peek() {
+    // this function parses constructions like: `int64 counter` (<type> <identifier>)
+    fn parse_type_and_name(&mut self) -> Variable {
+        match self.tokens.next() {
+            None => diag::fatal!("expected type, but got EOF"),
             Some(token) => match token.kind {
                 TokenKind::Identifier => {
-                    let typ_str = token.text.clone();
-                    let typ = match get_primitive_type(&typ_str) {
+                    let typ = match get_primitive_type(&token.text) {
                         Some(typ) => typ,
-                        None => diag::fatal!(token.loc, "unknown type `{}`", typ_str),
+                        None => diag::fatal!(token.loc, "unknown type `{}`", &token.text),
                     };
 
-                    self.tokens.next();
-                    if let Some(token) = self.tokens.next() {
-                        if token.kind != TokenKind::Identifier {
-                            diag::fatal!(token.loc, "expected token kind `{}`, got `{}`", TokenKind::Identifier, token.kind);
-                        }
+                    match self.tokens.next() {
+                        Some(token) => {
+                            if token.kind != TokenKind::Identifier {
+                                diag::fatal!(token.loc, "expected identifier, but got `{}`", token.text);
+                            }
 
-                        return Some(Variable {
-                            typ,
-                            name: token.text,
-                        });
+                            return Variable {
+                                typ,
+                                name: token.text,
+                            };
+                        },
+                        None => diag::fatal!("expected identifier, but got EOF")
                     }
-
-                    return None;
                 }
                 _ => diag::fatal!(token.loc, "expected identifier, got `{}`", token.text),
             },
-            None => None,
         }
     }
 
@@ -261,11 +247,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                 break;
             }
 
-            let type_token = self.tokens.next().unwrap();
-            let member_name = self.tokens.next().unwrap();
-            let typ = get_primitive_type(&type_token.text).unwrap();
-
-            members.push(Variable { name: member_name.text, typ });
+            members.push(self.parse_type_and_name());
 
             match self.tokens.next().unwrap().kind {
                 TokenKind::Comma => continue,
