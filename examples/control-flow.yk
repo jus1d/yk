@@ -1,4 +1,4 @@
-include "std/std.yk";
+include "std.yk";
 
 fn main() int64 {
     let counter: int64 = 0;

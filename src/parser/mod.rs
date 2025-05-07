@@ -586,36 +586,16 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
         }
     }
 
-    fn expect_tokens(&mut self, kinds: &[TokenKind]) -> Token {
-        let n = kinds.len();
-        let mut expected_tokens = String::new();
-        for (i, kind) in kinds.iter().enumerate() {
-            if i == n-2 {
-                expected_tokens.push_str(&format!("or `{}`", kind));
-            } else {
-                expected_tokens.push_str(&format!("`{}`", kind));
-                if i != n-1 {
-                    expected_tokens.push_str(", ");
-                }
-            }
-        }
-
-        let token = self.tokens.next();
-        match token {
-            Some(token) => {
-                for kind in kinds {
-                    if token.kind == *kind {
-                        return token;
-                    }
-                }
-                diag::fatal!("expected {}, got `{}`", expected_tokens, token.kind)
-            },
-            None => diag::fatal!("expected {}, got EOF", expected_tokens),
-        }
-    }
-
     fn expect(&mut self, kind: TokenKind) -> Token {
-        return self.expect_tokens(&[kind]);
+        match self.tokens.next() {
+            Some(token) => {
+                if token.kind != kind {
+                    diag::fatal!("expected token kind {}, but got {}", kind, token.kind);
+                }
+                token
+            },
+            None => diag::fatal!("expected token kind {}, but got EOF", kind),
+        }
     }
 
     fn expect_keyword(&mut self, word: &str) {

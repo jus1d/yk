@@ -51,7 +51,6 @@ impl<'a> Generator<'a> {
 
         for builtin_func_name in self.builtins_used.clone() {
             match builtin_func_name.as_str() {
-                "strlen" => self.write_strlen()?,
                 "write" => self.write_write()?,
                 "puti" => self.write_puti()?,
                 "putc" => self.write_putc()?,
@@ -414,25 +413,6 @@ impl<'a> Generator<'a> {
         Ok(())
     }
 
-    fn write_strlen(&mut self) -> io::Result<()> {
-        self.c("std::strlen", false)?;
-        writeln!(self.out, "strlen:")?;
-        writeln!(self.out, "    stp     x29, x30, [sp, -16]!")?;
-        writeln!(self.out, "    mov     x29, sp")?;
-        writeln!(self.out, "    mov     x1, x0")?;
-        writeln!(self.out, "1:")?;
-        writeln!(self.out, "    ldrb    w2, [x1], 1")?;
-        writeln!(self.out, "    cbz     w2, 2f")?;
-        writeln!(self.out, "    b       1b")?;
-        writeln!(self.out, "2:")?;
-        writeln!(self.out, "    sub     x0, x1, x0")?;
-        writeln!(self.out, "    sub     x0, x0, 1")?;
-        writeln!(self.out, "    ldp     x29, x30, [sp], 16")?;
-        writeln!(self.out, "    ret")?;
-        writeln!(self.out)?;
-        Ok(())
-    }
-
     fn write_putc(&mut self) -> io::Result<()> {
         self.c("std::putc", false)?;
         writeln!(self.out, "putc:")?;
@@ -602,7 +582,7 @@ fn execute_command(verbose: bool, program: &str, args: &[&str]) -> Result<Output
 
 fn is_builtin_func(name: &str) -> bool {
     match name {
-        "exit" | "write" | "putc" | "puti" | "strlen" => true,
+        "exit" | "write" | "putc" | "puti" => true,
         _ => false
     }
 }

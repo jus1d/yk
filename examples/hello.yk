@@ -2,6 +2,6 @@
 
 fn main() int64 {
     let message: string = "Hello, world!\n";
-    write(1, message, strlen(message));
+    write(1, message, 14);
     ret 0;
 }

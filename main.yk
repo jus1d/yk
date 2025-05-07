@@ -1,3 +1,7 @@
+include "std.yk";
+
 fn main() int64 {
+    let s = "Hello, world\n";
+    puti(f(s));
     ret 0;
 }

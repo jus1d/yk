@@ -57,16 +57,6 @@ pub fn typecheck(ast: &Ast) {
             body: vec![],
             is_public: true,
         }),
-        (String::from("strlen"), Function {
-            name: String::from("strlen"),
-            ret_type: Type::Int64,
-            params: vec![Variable {
-                name: String::from("s"),
-                typ: Type::String,
-            }],
-            body: vec![],
-            is_public: true,
-        }),
     ]);
 
     for (name, function) in &ast.functions {

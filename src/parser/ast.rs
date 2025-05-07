@@ -1,6 +1,7 @@
-use crate::lexer::Loc;
+use crate::lexer;
 
 use std::collections::HashMap;
+use lexer::Loc;
 
 #[derive(Clone, Debug)]
 pub struct Ast {
@@ -8,7 +9,6 @@ pub struct Ast {
     pub structs: Vec<StructDefinition>,
 }
 
-#[allow(dead_code)]
 #[derive(Clone, Debug)]
 pub struct StructDefinition {
     pub name: String,

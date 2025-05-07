@@ -31,13 +31,13 @@ pub fn putiln(int64 x) {
     puts("\n");
 }
 
-// nth: relatively safely gets a character from string by index
-pub fn nth(string s, int64 index) char {
-    if index < 0 || index >= strlen(s) {
-        panic("index out of range");
+// strlen: computes length of zero-terminated string
+pub fn strlen(string buffer) int64 {
+    let i = 0;
+    while buffer[i] != '\0' {
+        i = i + 1;
     }
-
-    ret s[index];
+    ret i;
 }
 
 // streq: checks if two strings are equal or not
@@ -57,6 +57,15 @@ pub fn streq(string s1, string s2) bool {
     }
 
     ret true;
+}
+
+// nth: relatively safely gets a character from string by index
+pub fn nth(string s, int64 index) char {
+    if index < 0 || index >= strlen(s) {
+        panic("index out of range");
+    }
+
+    ret s[index];
 }
 
 // panic: prints an error message and exits with non-zero exit code
