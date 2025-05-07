@@ -7,7 +7,7 @@ use std::path::Path;
 use ast::Type;
 
 pub const KEYWORDS: &[&str] = &[
-    "include", "pub", "fn", "struct",
+    "include", "fn", "struct",
     "let", "ret", "if", "else", "while",
     "true", "false",
 ];

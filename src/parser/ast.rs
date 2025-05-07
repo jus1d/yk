@@ -21,7 +21,6 @@ pub struct Function {
     pub ret_type: Type,
     pub params: Vec<Variable>,
     pub body: Vec<Statement>,
-    pub is_public: bool,
 }
 
 #[derive(Clone, Debug)]

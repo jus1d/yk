@@ -1,38 +1,38 @@
 // TODO: Factor out `fd` to write (stdout, stderr) into constants
 
 // fputs: prints a string buffer into `fd`
-pub fn fputs(int64 fd, string buf) int64 => write(fd, buf, strlen(buf));
+fn fputs(int64 fd, string buf) int64 => write(fd, buf, strlen(buf));
 
 // puts: prints string buffer into `stdout`
-pub fn puts(string buf) {
+fn puts(string buf) {
     fputs(1, buf);
 }
 
 // putsln: prints a string with terminating new line to stdout
-pub fn putsln(string s) {
+fn putsln(string s) {
     puts(s);
     puts("\n");
 }
 
 // eputs: prints string buffer into `stderr`
-pub fn eputs(string buf) {
+fn eputs(string buf) {
     fputs(2, buf);
 }
 
 // eputsln: prints string buffer into `stderr` with terminating new line
-pub fn eputsln(string buf) {
+fn eputsln(string buf) {
     fputs(2, buf);
     fputs(2, "\n");
 }
 
 // putiln: prints an integer with terminating new line to stdout
-pub fn putiln(int64 x) {
+fn putiln(int64 x) {
     puti(x);
     puts("\n");
 }
 
 // strlen: computes length of zero-terminated string
-pub fn strlen(string buffer) int64 {
+fn strlen(string buffer) int64 {
     let i = 0;
     while buffer[i] != '\0' {
         i = i + 1;
@@ -41,7 +41,7 @@ pub fn strlen(string buffer) int64 {
 }
 
 // streq: checks if two strings are equal or not
-pub fn streq(string s1, string s2) bool {
+fn streq(string s1, string s2) bool {
     let n1: int64 = strlen(s1);
     let n2: int64 = strlen(s2);
     if n1 != n2 {
@@ -60,7 +60,7 @@ pub fn streq(string s1, string s2) bool {
 }
 
 // nth: relatively safely gets a character from string by index
-pub fn nth(string s, int64 index) char {
+fn nth(string s, int64 index) char {
     if index < 0 || index >= strlen(s) {
         panic("index out of range");
     }
@@ -69,14 +69,14 @@ pub fn nth(string s, int64 index) char {
 }
 
 // panic: prints an error message and exits with non-zero exit code
-pub fn panic(string message)! {
+fn panic(string message)! {
     eputs("panic: ");
     eputsln(message);
     exit(1);
 }
 
 // pow: calculates `x` to the power of `power`
-pub fn pow(int64 x, int64 power) int64 {
+fn pow(int64 x, int64 power) int64 {
     let result: int64 = 1;
     while power > 0 {
         result = result * x;
@@ -86,7 +86,7 @@ pub fn pow(int64 x, int64 power) int64 {
 }
 
 // abs: returns an absolute value of an integer
-pub fn abs(int64 x) int64 {
+fn abs(int64 x) int64 {
     if x >= 0 {
         ret x;
     }
@@ -95,7 +95,7 @@ pub fn abs(int64 x) int64 {
 }
 
 // min: returns the smallest of two integers
-pub fn min(int64 a, int64 b) int64 {
+fn min(int64 a, int64 b) int64 {
     if a < b {
         ret a;
     }
@@ -104,7 +104,7 @@ pub fn min(int64 a, int64 b) int64 {
 }
 
 // max: returns the largest of two integers
-pub fn max(int64 a, int64 b) int64 {
+fn max(int64 a, int64 b) int64 {
     if a > b {
         ret a;
     }
@@ -113,7 +113,7 @@ pub fn max(int64 a, int64 b) int64 {
 }
 
 // cmp: compares two integers, and returns -1, 0 or 1, based on their relation
-pub fn cmp(int64 a, int64 b) int64 {
+fn cmp(int64 a, int64 b) int64 {
     if a < b {
         ret -1;
     }

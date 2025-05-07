@@ -32,13 +32,8 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
         while let Some(token) = self.tokens.next() {
             match token.kind {
                 TokenKind::Keyword => match token.text.as_str() {
-                    "pub" => {
-                        self.expect_keyword("fn");
-                        let func = self.parse_function(true);
-                        ast.functions.insert(func.name.clone(), func);
-                    },
                     "fn" => {
-                        let func = self.parse_function(false);
+                        let func = self.parse_function();
                         ast.functions.insert(func.name.clone(), func);
                     },
                     "include" => {
@@ -107,9 +102,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                         let included_ast = parser.parse_ast();
 
                         for (name, func) in included_ast.functions {
-                            if func.is_public {
-                                ast.functions.insert(name, func);
-                            }
+                            ast.functions.insert(name, func);
                         }
 
                         self.expect(TokenKind::Semicolon);
@@ -191,7 +184,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
         }
     }
 
-    pub fn parse_function(&mut self, is_public: bool) -> Function {
+    pub fn parse_function(&mut self) -> Function {
         let name = self.tokens.next().unwrap();
         if name.kind != TokenKind::Identifier {
             diag::fatal!(name.loc, "expected identifier, got `{}`", name.text);
@@ -230,7 +223,6 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                         ret_type: Type::Void,
                         params,
                         body,
-                        is_public,
                     };
                 },
                 TokenKind::OpenCurly => {
@@ -241,7 +233,6 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                         ret_type: Type::Void,
                         params,
                         body,
-                        is_public,
                     };
                 }
                 TokenKind::Identifier | TokenKind::Exclamation => {
@@ -263,7 +254,6 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                             ret_type: return_type,
                             params,
                             body,
-                            is_public,
                         };
                     }
 
@@ -273,7 +263,6 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                         ret_type: return_type,
                         params,
                         body,
-                        is_public,
                     };
                 }
                 other => diag::fatal!(token.loc, "expected block or return type, got `{}`", other),
@@ -595,17 +584,6 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                 token
             },
             None => diag::fatal!("expected token kind {}, but got EOF", kind),
-        }
-    }
-
-    fn expect_keyword(&mut self, word: &str) {
-        match self.tokens.next() {
-            None => diag::fatal!("expected token `{}`, got EOF", word),
-            Some(token) => {
-                if token.kind != TokenKind::Keyword || token.text != word {
-                    diag::fatal!(token.loc, "expected keyword `{}`, got `{}`", word, token.text)
-                };
-            }
         }
     }
 }
