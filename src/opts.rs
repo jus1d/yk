@@ -1,6 +1,6 @@
-use std::{env::Args, process::exit};
-
 use crate::diag;
+
+use std::{env::Args, process::exit};
 
 macro_rules! usage {
     ($program:expr) => {{

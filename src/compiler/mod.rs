@@ -2,8 +2,9 @@ pub mod aarch64;
 
 use crate::diag;
 use crate::opts::Opts;
-use crate::parser::Ast;
+use crate::parser::ast;
 
+use ast::Ast;
 use std::fs::File;
 use std::io::Write;
 use std::path::Path;

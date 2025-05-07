@@ -1,9 +1,10 @@
 use crate::diag;
-use crate::parser::Type;
+use crate::parser::ast;
 
 use std::fmt;
 use std::iter::Peekable;
 use std::path::Path;
+use ast::Type;
 
 pub const KEYWORDS: &[&str] = &[
     "include", "pub", "fn", "struct",

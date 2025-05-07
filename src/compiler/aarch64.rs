@@ -1,6 +1,7 @@
 use crate::diag;
-use crate::parser::{Ast, BinaryOp, Expr, Function, Literal, Statement, UnaryOp};
+use crate::parser::ast;
 
+use ast::{Ast, Function, Statement, Expr, Literal, BinaryOp, UnaryOp};
 use std::collections::BTreeSet;
 use std::io::{self, Write};
 use std::process::{Command, Output};

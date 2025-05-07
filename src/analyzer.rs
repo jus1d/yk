@@ -1,8 +1,9 @@
-use std::collections::HashMap;
-
 use crate::lexer::{Loc, KEYWORDS};
-use crate::parser::{Ast, BinaryOp, Expr, Function, Literal, Statement, Type, UnaryOp, Variable};
+use crate::parser::ast;
 use crate::diag;
+
+use std::collections::HashMap;
+use ast::{Ast, Function, Statement, Expr, Literal, BinaryOp, UnaryOp, Type, Variable};
 
 pub fn typecheck(ast: &Ast) {
     let builtin_funcs = HashMap::from([

@@ -1,8 +1,9 @@
-use std::collections::HashSet;
-
 use crate::diag;
 use crate::lexer::Loc;
-use crate::parser::{Ast, BinaryOp, Expr, Literal, Statement, UnaryOp};
+use crate::parser::ast;
+
+use std::collections::HashSet;
+use ast::{Ast, Statement, Expr, Literal, BinaryOp, UnaryOp};
 
 pub fn precompute_expressions(ast: &mut Ast) {
     ast.functions.values_mut().for_each(|func| {
