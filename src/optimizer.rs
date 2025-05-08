@@ -192,10 +192,10 @@ fn mark_unused_functions_statement(ast: &Ast, statement: &Statement, used_funcs:
                 mark_unused_functions_expression(ast, expr, used_funcs, visited);
             }
         },
-        Statement::Declaration { name: _, typ: _, value } => {
+        Statement::Declaration { value, .. } => {
             mark_unused_functions_expression(ast, value, used_funcs, visited);
         },
-        Statement::Assignment { name: _, value } => {
+        Statement::Assignment { value, .. } => {
             mark_unused_functions_expression(ast, value, used_funcs, visited);
         }
     }

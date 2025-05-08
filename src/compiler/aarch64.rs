@@ -195,7 +195,7 @@ impl<'a> Generator<'a> {
                 self.c(&format!("declaration: {} = {}", name, value), true)?;
                 writeln!(self.out, "    str     x8, [x29, {}]", 16 + get_variable_position(name, scope) * 8)?;
             }
-            Statement::Assignment { name, value } => {
+            Statement::Assignment { name, value, .. } => {
                 self.write_expression(value, scope, current_func, 8)?;
                 self.c(&format!("assignment: {} = {}", name, value), true)?;
                 writeln!(self.out, "    str     x8, [x29, {}]", 16 + get_variable_position(name, scope) * 8)?;

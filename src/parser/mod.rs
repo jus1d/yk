@@ -105,6 +105,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
 
                     return Function {
                         name: name_token.text,
+                        name_loc: name_token.loc,
                         ret_type: return_type,
                         params,
                         body,
@@ -115,6 +116,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
 
                     return Function {
                         name: name_token.text,
+                        name_loc: name_token.loc,
                         ret_type: return_type,
                         params,
                         body,
@@ -429,10 +431,10 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                         return Statement::While { condition: Some(condition), block };
                     },
                     "let" => {
-                        let name = match self.tokens.next() {
+                        let name_token = match self.tokens.next() {
                             Some(token) => {
                                 if token.kind == TokenKind::Identifier {
-                                    token.text
+                                    token
                                 } else {
                                     diag::fatal!(token.loc, "expected identifier, got `{}`", token.text);
                                 }
@@ -463,18 +465,18 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
 
                                     if self.tokens.next_if(|token| token.kind == TokenKind::Semicolon).is_some() {
                                         let value = get_zero_value(typ.clone(), Loc::unused());
-                                        return Statement::Declaration { name, typ: Some(typ), value };
+                                        return Statement::Declaration { name: name_token.text, name_loc: name_token.loc, typ: Some(typ), value };
                                     }
 
                                     self.expect(TokenKind::Assign);
                                     let value = self.parse_expression();
                                     self.expect(TokenKind::Semicolon);
-                                    return Statement::Declaration { name, typ: Some(typ), value };
+                                    return Statement::Declaration { name: name_token.text, name_loc: name_token.loc, typ: Some(typ), value };
                                 },
                                 TokenKind::Assign => {
                                     let value = self.parse_expression();
                                     self.expect(TokenKind::Semicolon);
-                                    return Statement::Declaration { name, typ: None, value };
+                                    return Statement::Declaration { name: name_token.text, name_loc: name_token.loc, typ: None, value };
                                 },
                                 TokenKind::Semicolon => diag::fatal!(token.loc, "cannot know type of variable at compile time, specify type annotation or assign a value"),
                                 _ => diag::fatal!(token.loc, "expected `{}` or `{}`, got `{}`", TokenKind::Colon, TokenKind::Assign, token.text),
@@ -486,13 +488,13 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                 },
                 TokenKind::Identifier => {
                     let name = token.text.clone();
-                    let funcall_loc = token.loc.clone();
+                    let loc = token.loc.clone();
 
                     if self.tokens.next_if(|token| token.kind == TokenKind::Assign).is_some() {
                         // Assignment
                         let value = self.parse_expression();
                         self.expect(TokenKind::Semicolon);
-                        return Statement::Assignment { name, value }
+                        return Statement::Assignment { name, name_loc: loc, value }
                     }
 
                     // Function call
@@ -515,7 +517,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                     self.expect(TokenKind::CloseParen);
                     self.expect(TokenKind::Semicolon);
 
-                    return Statement::Funcall { name, args, loc: funcall_loc };
+                    return Statement::Funcall { name, args, loc };
                 },
                 _ => diag::fatal!(token.loc, "unexpected token: `{}`\n", token.text),
             },

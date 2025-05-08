@@ -9,6 +9,7 @@ pub fn typecheck(ast: &Ast) {
     let builtin_funcs = HashMap::from([
         (String::from("write"), Function {
             name: String::from("write"),
+            name_loc: Loc::unused(),
             ret_type: Type::Int64,
             params: vec![
                 Variable {
@@ -28,6 +29,7 @@ pub fn typecheck(ast: &Ast) {
         }),
         (String::from("putc"), Function {
             name: String::from("putc"),
+            name_loc: Loc::unused(),
             ret_type: Type::Void,
             params: vec![Variable {
                 name: String::from("ch"),
@@ -37,6 +39,7 @@ pub fn typecheck(ast: &Ast) {
         }),
         (String::from("puti"), Function {
             name: String::from("puti"),
+            name_loc: Loc::unused(),
             ret_type: Type::Void,
             params: vec![Variable {
                 name: String::from("val"),
@@ -46,6 +49,7 @@ pub fn typecheck(ast: &Ast) {
         }),
         (String::from("exit"), Function {
             name: String::from("exit"),
+            name_loc: Loc::unused(),
             ret_type: Type::Never,
             params: vec![Variable {
                 name: String::from("code"),
@@ -57,7 +61,7 @@ pub fn typecheck(ast: &Ast) {
 
     for (name, function) in &ast.functions {
         if builtin_funcs.contains_key(name.as_str()) {
-            diag::fatal!("symbol `{name}` is a builtin function name");
+            diag::fatal!(function.name_loc, "symbol `{name}` is a builtin function name");
         }
 
         let mut vars: Vec<Variable> = vec![];
@@ -84,7 +88,7 @@ fn typecheck_statement(ast: &Ast, func: &Function, statement: &Statement, vars: 
                 let expected_type = &func.ret_type;
                 let actual_type = &get_expression_type(ast, value, vars, builtin_funcs);
                 if actual_type != expected_type {
-                    diag::fatal!("mismatched type of return expression. expected `{}`, but got `{}`", expected_type, actual_type);
+                    diag::fatal!(value.clone().loc(), "mismatched type of return expression. expected `{}`, but got `{}`", expected_type, actual_type);
                 }
 
                 typecheck_expr(ast, value, vars, builtin_funcs, &ast.functions);
@@ -120,13 +124,13 @@ fn typecheck_statement(ast: &Ast, func: &Function, statement: &Statement, vars: 
                 typecheck_statement(ast, func, statement, vars, builtin_funcs);
             }
         },
-        Statement::Declaration { name, typ, value } => {
+        Statement::Declaration { name, name_loc, typ, value } => {
             if KEYWORDS.contains(&name.as_str()) {
-                diag::fatal!("variable name collides with reserved keyword `{}`", name);
+                diag::fatal!(name_loc, "variable name collides with reserved keyword `{}`", name);
             }
 
             if ast.functions.get(name).is_some() {
-                diag::fatal!("variable name collides with defined function `{}`", name);
+                diag::fatal!(name_loc, "variable name collides with defined function `{}`", name);
             }
 
             match typ {
@@ -152,16 +156,16 @@ fn typecheck_statement(ast: &Ast, func: &Function, statement: &Statement, vars: 
                 },
             }
         },
-        Statement::Assignment { name, value } => {
+        Statement::Assignment { name, name_loc, value } => {
             let actual_type = get_expression_type(ast, value, vars, builtin_funcs);
             if let Some(variable) = vars.iter().find(|var| var.name == *name) {
                 let expected_type = variable.typ.clone();
                 if actual_type != expected_type {
-                    diag::fatal!(value.clone().loc(), "assignment to `{}`: expected type `{}`, but got `{}`", name, expected_type, actual_type);
+                    diag::fatal!(name_loc, "assignment to `{}`: expected type `{}`, but got `{}`", name, expected_type, actual_type);
                 }
             }
             else {
-                diag::fatal!("variable `{}` not found in this scope", name);
+                diag::fatal!(name_loc, "variable `{}` not found in this scope", name);
             }
         },
     }
@@ -247,7 +251,7 @@ fn typecheck_funcall(ast: &Ast, name: &str, args: &[Expr], loc: &Loc, vars: &Vec
     } else if let Some(func) = user_funcs.get(name) {
         func
     } else {
-        diag::fatal!("call to undeclared function `{}`", name);
+        diag::fatal!(loc, "call to undeclared function `{}`", name);
     };
 
     check_arguments_count(name, loc, args.len(), func.params.len());
@@ -278,7 +282,7 @@ pub fn check_entrypoint_declaration(ast: &Ast) {
     match ast.functions.get("main") {
         Some(func) => {
             if func.params.len() > 0 {
-                diag::fatal!("function `main` should not accept any parameters");
+                diag::fatal!(func.name_loc, "function `main` should not accept any parameters");
             }
             if func.ret_type != Type::Int64 {
                 diag::fatal!("expect `fn main` to return `{}`", Type::Int64);

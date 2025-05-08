@@ -11,6 +11,7 @@ pub struct Ast {
 #[derive(Clone, Debug)]
 pub struct Function {
     pub name: String,
+    pub name_loc: Loc,
     pub ret_type: Type,
     pub params: Vec<Variable>,
     pub body: Vec<Statement>,
@@ -55,11 +56,13 @@ pub enum Statement {
     },
     Declaration {
         name: String,
+        name_loc: Loc,
         typ: Option<Type>,
         value: Expr,
     },
     Assignment {
         name: String,
+        name_loc: Loc,
         value: Expr,
     },
     Ret {
