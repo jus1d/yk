@@ -6,13 +6,6 @@ use lexer::Loc;
 #[derive(Clone, Debug)]
 pub struct Ast {
     pub functions: HashMap<String, Function>,
-    pub structs: HashMap<String, StructDefinition>,
-}
-
-#[derive(Clone, Debug)]
-pub struct StructDefinition {
-    pub name: String,
-    pub members: Vec<Variable>,
 }
 
 #[derive(Clone, Debug)]

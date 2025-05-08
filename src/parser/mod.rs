@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use std::{fmt, fs};
 use std::iter::Peekable;
 use std::process::Command;
-use ast::{Ast, Function, StructDefinition, Branch, Statement, Expr, Literal, BinaryOp, UnaryOp, Type, Variable};
+use ast::{Ast, Function, Branch, Statement, Expr, Literal, BinaryOp, UnaryOp, Type, Variable};
 
 pub struct Parser<Tokens> where Tokens: Iterator<Item = Token> {
     pub tokens: Peekable<Tokens>,
@@ -26,7 +26,6 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
     pub fn parse_ast(&mut self) -> Ast {
         let mut ast = Ast {
             functions: HashMap::new(),
-            structs: HashMap::new(),
         };
 
         while let Some(token) = self.tokens.peek() {
@@ -41,13 +40,6 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                         for (name, func) in included.functions {
                             ast.functions.insert(name, func);
                         }
-                        for (name, strct) in included.structs {
-                            ast.structs.insert(name, strct);
-                        }
-                    },
-                    "struct" => {
-                        let strct = self.parse_struct_definition();
-                        ast.structs.insert(strct.name.clone(), strct);
                     },
                     _ => diag::fatal!(token.loc, "unexpected keyword: `{}`", token.text)
                 },
@@ -225,41 +217,6 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
         let mut parser = Parser::from_iter(lexer, self.include_folders.clone());
 
         return parser.parse_ast();
-    }
-
-    fn parse_struct_definition(&mut self) -> StructDefinition {
-        self.expect_keyword("struct");
-        let struct_name_token = if let Some(token) = self.tokens.next() {
-            if token.kind != TokenKind::Identifier {
-                diag::fatal!(token.loc, "expected identifier, but got `{}`", token.text);
-            }
-            token
-        } else {
-            diag::fatal!("expected identifier, got EOF");
-        };
-
-        let mut members: Vec<Variable> = Vec::new();
-
-        self.expect(TokenKind::OpenCurly);
-
-        loop {
-            if let Some(_) = self.tokens.next_if(|token| token.kind == TokenKind::CloseCurly) {
-                break;
-            }
-
-            members.push(self.parse_type_and_name());
-
-            match self.tokens.next().unwrap().kind {
-                TokenKind::Comma => continue,
-                TokenKind::CloseCurly => break,
-                kind => diag::fatal!("expected `,` ot `}}` after member definition, got `{}`", kind)
-            }
-        }
-
-        return StructDefinition {
-            name: struct_name_token.text,
-            members,
-        };
     }
 
     pub fn parse_block(&mut self) -> Vec<Statement> {
