@@ -556,7 +556,7 @@ pub fn link_object_file(verbose: bool, object_path: &str, output_path: &str) {
 
 fn execute_command(verbose: bool, program: &str, args: &[&str]) -> Result<Output, std::io::Error> {
     if verbose {
-        println!("[CMD]: {} {}", program, args.join(" "));
+        println!("CMD: {} {}", program, args.join(" "));
     }
 
     let output = Command::new(program).args(args).output();

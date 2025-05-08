@@ -23,7 +23,7 @@ impl Compiler {
 
     pub fn compile(&self, opts: &Opts) {
         if cfg![target_arch = "aarch64"] {
-            compile_aarch64_darwin(opts, &self.ast);
+            compile_aarch64_darwin(&self.ast, opts);
         } else {
             diag::fatal!("unsupported architecture. only `aarch64` available now");
         };
@@ -31,14 +31,15 @@ impl Compiler {
 
 }
 
-fn compile_aarch64_darwin(opts: &Opts, ast: &Ast) {
+fn compile_aarch64_darwin(ast: &Ast, opts: &Opts) {
     let filebase = if opts.output_path.is_empty() {
         let path = Path::new(&opts.input_path).with_extension("");
         path.as_os_str().to_str().unwrap().to_string()
     } else {
-        opts.output_path.clone()
+        let path = Path::new(&opts.output_path).with_extension("");
+        path.as_os_str().to_str().unwrap().to_string()
     };
-
+    let extension = Path::new(&opts.output_path).extension().and_then(|ext| ext.to_str()).unwrap_or("");
     let assembly_path = format!("{}.s", filebase);
 
     let start = Instant::now();
@@ -58,15 +59,22 @@ fn compile_aarch64_darwin(opts: &Opts, ast: &Ast) {
         Ok(_) => {
             let elapsed = start.elapsed();
             if !opts.silent {
-                println!("INFO: Wrote {} bytes of assembly", bytes.len());
-                println!("INFO: Assembly generation took {:.2?}", elapsed);
+                println!("INFO: Generated {} bytes of assembly, took {:.2?}", bytes.len(), elapsed);
             }
         },
+    }
+
+    if extension == "s" {
+        return;
     }
 
     let start = Instant::now();
     let object_path = format!("{}.o", filebase);
     aarch64::generate_object_from_assembly(!opts.silent, &assembly_path, &object_path);
+
+    if extension == "o" {
+        return;
+    }
 
     aarch64::link_object_file(!opts.silent, &object_path, &filebase);
     let elapsed = start.elapsed();

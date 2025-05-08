@@ -1,11 +1,3 @@
-include "std.yk";
-
-struct Point {
-    int64 x,
-    int64 y,
-}
-
 fn main() int64 {
-    let s = "Hello, world\n";
     ret 0;
 }
