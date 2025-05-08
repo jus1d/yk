@@ -509,20 +509,20 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                                         return Statement::Declaration { name, typ: Some(typ), value };
                                     }
 
-                                    self.expect(TokenKind::Equals);
+                                    self.expect(TokenKind::Assign);
                                     let value = self.parse_expression();
                                     self.expect(TokenKind::Semicolon);
                                     return Statement::Declaration { name, typ: Some(typ), value };
                                 },
-                                TokenKind::Equals => {
+                                TokenKind::Assign => {
                                     let value = self.parse_expression();
                                     self.expect(TokenKind::Semicolon);
                                     return Statement::Declaration { name, typ: None, value };
                                 },
                                 TokenKind::Semicolon => diag::fatal!(token.loc, "cannot know type of variable at compile time, specify type annotation or assign a value"),
-                                _ => diag::fatal!(token.loc, "expected `{}` or `{}`, got `{}`", TokenKind::Colon, TokenKind::Equals, token.text),
+                                _ => diag::fatal!(token.loc, "expected `{}` or `{}`, got `{}`", TokenKind::Colon, TokenKind::Assign, token.text),
                             },
-                            None => diag::fatal!(token.loc, "expected `{}` or `{}`, got EOF", TokenKind::Colon, TokenKind::Equals),
+                            None => diag::fatal!(token.loc, "expected `{}` or `{}`, got EOF", TokenKind::Colon, TokenKind::Assign),
                         }
                     },
                     _ => diag::fatal!("unexpected keyword `{}`", token.text),
@@ -531,7 +531,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                     let name = token.text.clone();
                     let funcall_loc = token.loc.clone();
 
-                    if self.tokens.next_if(|token| token.kind == TokenKind::Equals).is_some() {
+                    if self.tokens.next_if(|token| token.kind == TokenKind::Assign).is_some() {
                         // Assignment
                         let value = self.parse_expression();
                         self.expect(TokenKind::Semicolon);

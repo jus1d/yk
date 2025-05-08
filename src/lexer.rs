@@ -14,44 +14,45 @@ pub const KEYWORDS: &[&str] = &[
 
 #[derive(PartialEq, Eq, Clone, Copy)]
 pub enum TokenKind {
-    Keyword,
-    Identifier,
-    Number,
-    String,
-    Char,
+    // Keywords, ident and literals for basic types
+    Keyword,    // let, fn, include etc.
+    Identifier, // main
+    Number,     // 69
+    String,     // "string"
+    Char,       // 'c'
 
-    OpenParen,
-    CloseParen,
-    OpenCurly,
-    CloseCurly,
-    OpenBracket,
-    CloseBracket,
+    OpenParen,    // (
+    CloseParen,   // )
+    OpenCurly,    // {
+    CloseCurly,   // }
+    OpenBracket,  // [
+    CloseBracket, // ]
 
-    Colon,
-    Semicolon,
-    Comma,
+    Colon,     // :
+    Semicolon, // ;
+    Comma,     // ,
 
-    Plus,
-    Minus,
-    Star,
-    Slash,
-    Equals,
-    Exclamation,
-    Percent,
+    Plus,        // +
+    Minus,       // -
+    Star,        // *
+    Slash,       // /
+    Assign,      // =
+    Exclamation, // !
+    Percent,     // %
 
-    EqualEqual,
-    NotEqual,
-    Greater,
-    Less,
-    GreaterEqual,
-    LessEqual,
+    EqualEqual,   // ==
+    NotEqual,     // !=
+    Greater,      // >
+    Less,         // <
+    GreaterEqual, // >=
+    LessEqual,    // <=
 
-    Ampersand,
-    DoubleAmpersand,
-    Pipe,
-    DoublePipe,
+    Ampersand,       // &
+    DoubleAmpersand, // &&
+    Pipe,            // |
+    DoublePipe,      // ||
 
-    FatArrow,
+    FatArrow, // =>
 }
 
 impl fmt::Display for TokenKind {
@@ -76,7 +77,7 @@ impl fmt::Display for TokenKind {
                 TokenKind::Minus => "-",
                 TokenKind::Star => "*",
                 TokenKind::Slash => "/",
-                TokenKind::Equals => "=",
+                TokenKind::Assign => "=",
                 TokenKind::EqualEqual => "==",
                 TokenKind::NotEqual => "!=",
                 TokenKind::Greater => ">",
@@ -349,7 +350,7 @@ impl<Chars: Iterator<Item = char> + Clone> Iterator for Lexer<Chars> {
                 if self.chars.next_if(|ch| *ch == '=').is_some() {
                     return Some(Token::with_text(TokenKind::EqualEqual, "==", loc));
                 }
-                return Some(Token::with_text(TokenKind::Equals, "=", loc));
+                return Some(Token::with_text(TokenKind::Assign, "=", loc));
             },
             '!' => {
                 if self.chars.next_if(|ch| *ch == '=').is_some() {
