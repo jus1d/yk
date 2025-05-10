@@ -90,16 +90,13 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
             }
         }
 
-        let return_type = if let Some(token) = self.tokens.next_if(|token| token.kind == TokenKind::Identifier || token.kind == TokenKind::Exclamation) {
-            match get_primitive_type(&token.text) {
-                Some(typ) => typ,
-                None => {
-                    eprintln!("{}: error: unknown type `{}`", token.loc, token.text);
-                    exit(1);
-                },
-            }
-        } else {
-            Type::Void
+        let return_type = match self.tokens.peek() {
+            Some(token) => match token.kind {
+                // NOTE: return type is void, if it is not specified
+                TokenKind::FatArrow | TokenKind::OpenCurly => Type::Void,
+                _ => self.parse_type(),
+            },
+            None => unreachable!(),
         };
 
         if let Some(_) = self.tokens.next_if(|token| token.kind == TokenKind::FatArrow) {
@@ -131,44 +128,13 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
 
     // this function parses constructions like: `int64 counter` (<type> <identifier>)
     fn parse_type_and_name(&mut self) -> Variable {
-        // use parse_type + expect(ident)
-        match self.tokens.next() {
-            None => unreachable!(),
-            Some(token) => match token.kind {
-                TokenKind::EOF => {
-                    eprintln!("{}: error: expected type, but got EOF", token.loc);
-                    exit(1);
-                },
-                TokenKind::Identifier => {
-                    let typ = match get_primitive_type(&token.text) {
-                        Some(typ) => typ,
-                        None => {
-                            eprintln!("{}: error: unknown type `{}`", token.loc, token.text);
-                            exit(1);
-                        },
-                    };
+        let typ = self.parse_type();
+        let name_token = self.expect(TokenKind::Identifier);
 
-                    match self.tokens.next() {
-                        Some(token) => {
-                            if token.kind != TokenKind::Identifier {
-                                eprintln!("{}: error: expected identifier, but got {}", token.loc, token);
-                                exit(1);
-                            }
-
-                            return Variable {
-                                typ,
-                                name: token.text,
-                            };
-                        },
-                        None => unreachable!()
-                    }
-                }
-                _ => {
-                    eprintln!("{}: error: expected identifier, but got {}", token.loc, token);
-                    exit(1);
-                },
-            },
-        }
+        return Variable {
+            typ,
+            name: name_token.text,
+        };
     }
 
     fn parse_include(&mut self) -> Ast {
@@ -232,6 +198,27 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
         let mut parser = Parser::from_iter(lexer, self.include_folders.clone());
 
         return parser.parse_ast();
+    }
+
+    fn parse_type(&mut self) -> Type {
+        use TokenKind::*;
+        match self.tokens.next() {
+            None => unreachable!(),
+            Some(token) => match token.kind {
+                Identifier | Exclamation => {
+                    if let Some(typ) = get_primitive_type(&token.text) {
+                        return typ;
+                    }
+
+                    eprintln!("{}: error: unknown type `{}`", token.loc, token.text);
+                    exit(1);
+                }
+                _ => {
+                    eprintln!("{}: error: expected type, but got {}", token.loc, token);
+                    exit(1);
+                },
+            },
+        }
     }
 
     pub fn parse_block(&mut self) -> Vec<Statement> {
@@ -444,19 +431,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                         match self.tokens.next() {
                             Some(token) => match token.kind {
                                 TokenKind::Colon => {
-                                    let typ = match self.tokens.next() {
-                                        Some(token) => {
-                                            match get_primitive_type(&token.text) {
-                                                Some(typ) => typ,
-                                                None => {
-                                                    eprintln!("{}: error: expected type, got {}", token.loc, token);
-                                                    exit(1);
-                                                },
-                                            }
-                                        },
-                                        None => unreachable!(),
-                                    };
-
+                                    let typ = self.parse_type();
                                     if typ == Type::Never || typ == Type::Void {
                                         eprintln!("{}: error: cannot declare variable with type `{}`", token.loc, typ);
                                         exit(1);
