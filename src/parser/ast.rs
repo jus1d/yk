@@ -1,7 +1,7 @@
 use crate::lexer;
 
 use std::collections::HashMap;
-use lexer::Loc;
+use lexer::token::Loc;
 
 #[derive(Clone, Debug)]
 pub struct Ast {

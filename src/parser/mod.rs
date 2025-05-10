@@ -1,7 +1,8 @@
 pub mod ast;
 
 use crate::diag;
-use crate::lexer::{self, Loc, Token, TokenKind, KEYWORDS};
+use crate::lexer;
+use crate::lexer::token::{Loc, Token, TokenKind, KEYWORDS};
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};

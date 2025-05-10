@@ -1,5 +1,5 @@
 use crate::diag;
-use crate::lexer::Loc;
+use crate::lexer::token::Loc;
 use crate::parser::ast;
 
 use std::collections::HashSet;

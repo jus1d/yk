@@ -1,4 +1,4 @@
-use crate::lexer::{Loc, KEYWORDS};
+use crate::lexer::token::{Loc, KEYWORDS};
 use crate::parser::ast;
 use crate::diag;
 
