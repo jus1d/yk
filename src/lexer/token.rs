@@ -1,7 +1,7 @@
 use std::fmt;
 
 pub const KEYWORDS: &[&str] = &[
-    "include", "fn", "struct",
+    "include", "fn",
     "let", "ret", "if", "else", "while",
     "true", "false",
 ];
@@ -47,6 +47,9 @@ pub enum TokenKind {
     DoublePipe,      // ||
 
     FatArrow, // =>
+
+    // Special tokens
+    EOF,
 }
 
 impl fmt::Display for TokenKind {
@@ -85,6 +88,7 @@ impl fmt::Display for TokenKind {
                 TokenKind::Ampersand => "&",
                 TokenKind::DoubleAmpersand => "&&",
                 TokenKind::FatArrow => "=>",
+                TokenKind::EOF => "EOF",
             }
         )
     }

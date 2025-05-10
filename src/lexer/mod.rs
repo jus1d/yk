@@ -12,6 +12,7 @@ pub struct Lexer<Chars: Iterator<Item = char> + Clone> {
     cur: usize,
     line: usize,
     bol: usize,
+    terminated: bool,
 }
 
 impl<Chars: Iterator<Item = char> + Clone> Lexer<Chars> {
@@ -22,6 +23,7 @@ impl<Chars: Iterator<Item = char> + Clone> Lexer<Chars> {
             cur: 0,
             line: 0,
             bol: 0,
+            terminated: false,
         }
     }
 
@@ -108,11 +110,16 @@ impl<Chars: Iterator<Item = char> + Clone> Iterator for Lexer<Chars> {
     fn next(&mut self) -> Option<Token> {
         self.trim_whitespace();
 
+        let loc = Loc::new(&self.filename, self.line, self.cur - self.bol);
+
         if self.chars.peek().is_none() {
-            return None;
+            if self.terminated {
+                return None;
+            }
+            self.terminated = true;
+            return Some(Token { kind: TokenKind::EOF, text: String::from("EOF"), number: 0, loc })
         }
 
-        let loc = Loc::new(&self.filename, self.line, self.cur - self.bol);
         let mut text = String::new();
 
         let ch = self.chars.next().unwrap();
