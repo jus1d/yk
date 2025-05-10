@@ -59,20 +59,9 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
         unreachable!()
     }
 
-    fn parse_identifier(&mut self) -> Token {
-        match self.tokens.next() {
-            Some(token) if token.kind == TokenKind::Identifier => token,
-            Some(token) => {
-                eprintln!("{}: error: expected identifier, but got `{}`", token.loc, token.text);
-                exit(1);
-            }
-            None => unreachable!(),
-        }
-    }
-
     fn parse_function(&mut self) -> Function {
         self.expect_keyword("fn");
-        let name_token = self.parse_identifier();
+        let name_token = self.expect(TokenKind::Identifier);
 
         if KEYWORDS.contains(&name_token.text.as_str()) {
             eprintln!("{}: error: function name collides with reserved keyword `{}`", name_token.loc, name_token.text);
@@ -92,7 +81,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                         TokenKind::Comma => continue,
                         TokenKind::CloseParen => break,
                         _ => {
-                            eprintln!("{}: error: expected either comma or close paren, but got `{}`", token.loc, token.text);
+                            eprintln!("{}: error: expected either {} or {}, but got `{}`", token.loc, TokenKind::Comma, TokenKind::CloseParen, token.text);
                             exit(1);
                         },
                     }
@@ -142,6 +131,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
 
     // this function parses constructions like: `int64 counter` (<type> <identifier>)
     fn parse_type_and_name(&mut self) -> Variable {
+        // use parse_type + expect(ident)
         match self.tokens.next() {
             None => unreachable!(),
             Some(token) => match token.kind {
@@ -161,7 +151,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                     match self.tokens.next() {
                         Some(token) => {
                             if token.kind != TokenKind::Identifier {
-                                eprintln!("{}: error: expected identifier, but got `{}`", token.loc, token.text);
+                                eprintln!("{}: error: expected identifier, but got {}", token.loc, token);
                                 exit(1);
                             }
 
@@ -174,7 +164,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                     }
                 }
                 _ => {
-                    eprintln!("{}: error: expected identifier, got `{}`", token.loc, token.text);
+                    eprintln!("{}: error: expected identifier, but got {}", token.loc, token);
                     exit(1);
                 },
             },
@@ -190,11 +180,11 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
         let include_path = include_path_token.text;
         if let Some(ext) = Path::new(&include_path).extension().and_then(|ext| ext.to_str()) {
             if ext != "yk" {
-                eprintln!("{}: error: included file '{}' has wrong extension: `{}`, expected `yk`", include_path_token.loc, include_path, ext);
+                eprintln!("{}: error: included file '{}' has wrong extension: '.{}', expected '.yk'", include_path_token.loc, include_path, ext);
                 exit(1);
             }
         } else {
-            eprintln!("{}: error: included file '{}' has wrong extension", include_path_token.loc, include_path);
+            eprintln!("{}: error: included file '{}' expected to have '.yk' extension", include_path_token.loc, include_path);
             exit(1);
         }
 
@@ -202,8 +192,8 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
             read_source_via_https(&include_path, include_path_token.loc)
         } else {
             if self.include_folders.len() == 0 {
-                eprintln!("{}: error: no include folders added, to find file `{}`",
-                    include_path_token.loc, include_path);
+                eprintln!("{}: error: no include folders added, to find file `{}`", include_path_token.loc, include_path);
+                eprintln!("{}: note: use `-I<path>` compiler flag to add folder to search list", include_path_token.loc);
                 exit(1);
             }
 
@@ -213,7 +203,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                 if path.exists() {
                     if let Some(found_path) = found_path {
                         eprintln!("{}: error: cannot determine which file to include, some options: {}, {}",
-                            include_path_token.loc, path.to_str().unwrap(), found_path.to_str().unwrap());
+                            include_path_token.loc, path.display(), found_path.display());
                         exit(1);
                     }
                     found_path = Some(path);
@@ -245,11 +235,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
     }
 
     pub fn parse_block(&mut self) -> Vec<Statement> {
-        let lbrace = self.tokens.next().unwrap();
-        if lbrace.kind != TokenKind::OpenCurly {
-            eprintln!("{}: error: expected `{}`, but got `{}`", lbrace.loc, TokenKind::OpenCurly, lbrace.kind);
-            exit(1);
-        }
+        self.expect(TokenKind::OpenCurly);
 
         let mut statements = Vec::new();
         if self.tokens.next_if(|token| token.kind == TokenKind::CloseCurly).is_some() {
@@ -263,11 +249,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
             }
         }
 
-        let rbrace = self.tokens.next().unwrap();
-        if rbrace.kind != TokenKind::CloseCurly {
-            eprintln!("{}: error: expected `{}`, got `{}`", rbrace.loc, TokenKind::CloseCurly, rbrace.kind);
-            exit(1);
-        }
+        self.expect(TokenKind::CloseCurly);
 
         return statements;
     }
@@ -381,7 +363,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                         "true" => return Expr::Literal { lit: Literal::Bool(true), loc: token.loc },
                         "false" => return Expr::Literal { lit: Literal::Bool(false), loc: token.loc },
                         _ => {
-                            eprintln!("{}: error: unexpected keyword `{}`", token.loc, token.text);
+                            eprintln!("{}: error: unexpected {}", token.loc, token);
                             exit(1);
                         },
                     }
@@ -392,7 +374,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                     return expr;
                 },
                 _ => {
-                    eprintln!("{}: error: expected expression, but got `{}`", token.loc, token.kind);
+                    eprintln!("{}: error: expected expression, but got {}", token.loc, token);
                     exit(1);
                 },
             },
@@ -410,10 +392,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                         }
 
                         let value = self.parse_expression();
-                        if self.tokens.next_if(|t| t.kind == TokenKind::Semicolon).is_none() {
-                            eprintln!("{}: error: missing semicolon after return", token.loc);
-                            exit(1);
-                        }
+                        self.expect(TokenKind::Semicolon);
 
                         return Statement::Ret { value: Some(value) };
                     },
@@ -460,17 +439,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                         return Statement::While { condition: Some(condition), block };
                     },
                     "let" => {
-                        let name_token = match self.tokens.next() {
-                            Some(token) => {
-                                if token.kind == TokenKind::Identifier {
-                                    token
-                                } else {
-                                    eprintln!("{}: error: expected identifier, got `{}`", token.loc, token.text);
-                                    exit(1);
-                                }
-                            },
-                            None => unreachable!(),
-                        };
+                        let name_token = self.expect(TokenKind::Identifier);
 
                         match self.tokens.next() {
                             Some(token) => match token.kind {
@@ -480,7 +449,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                                             match get_primitive_type(&token.text) {
                                                 Some(typ) => typ,
                                                 None => {
-                                                    eprintln!("{}: error: expected type, got `{}`", token.loc, token.text);
+                                                    eprintln!("{}: error: expected type, got {}", token.loc, token);
                                                     exit(1);
                                                 },
                                             }
@@ -489,7 +458,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                                     };
 
                                     if typ == Type::Never || typ == Type::Void {
-                                        eprintln!("{}: error: cannot declare variable with `{}` type", token.loc, typ);
+                                        eprintln!("{}: error: cannot declare variable with type `{}`", token.loc, typ);
                                         exit(1);
                                     }
 
@@ -509,11 +478,11 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                                     return Statement::Declaration { name: name_token.text, name_loc: name_token.loc, typ: None, value };
                                 },
                                 TokenKind::Semicolon => {
-                                    eprintln!("{}: error: cannot know type of variable at compile time, specify type annotation or assign a value", token.loc);
+                                    eprintln!("{}: error: cannot know type of variable at compile time, specify type annotation or assign a value with known type", token.loc);
                                     exit(1);
                                 },
                                 _ => {
-                                    eprintln!("{}: error: expected `{}` or `{}`, got `{}`", token.loc, TokenKind::Colon, TokenKind::Assign, token.text);
+                                    eprintln!("{}: error: expected {} or {}, but got {}", token.loc, TokenKind::Colon, TokenKind::Assign, token);
                                     exit(1);
                                 },
                             },
@@ -521,7 +490,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                         }
                     },
                     _ => {
-                        eprintln!("{}: error: unexpected keyword `{}`", token.loc, token.text);
+                        eprintln!("{}: error: unexpected {}", token.loc, token);
                         exit(1);
                     },
                 },
@@ -542,7 +511,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                     if self.tokens.next_if(|t| t.kind == TokenKind::OpenParen).is_none() {
                         let mut loc = token.loc.clone();
                         loc.col += token.text.len();
-                        eprintln!("{}: error: expected `{}` after function name", loc, TokenKind::OpenParen);
+                        eprintln!("{}: error: expected {} after callee name", loc, TokenKind::OpenParen);
                         exit(1);
                     }
 
@@ -560,7 +529,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                     return Statement::Funcall { name, args, loc };
                 },
                 _ => {
-                    eprintln!("{}: error: unexpected token: `{}`\n", token.loc, token.text);
+                    eprintln!("{}: error: unexpected {}", token.loc, token);
                     exit(1);
                 },
             },
@@ -570,13 +539,11 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
 
     fn expect(&mut self, kind: TokenKind) -> Token {
         match self.tokens.next() {
+            Some(token) if token.kind == kind => token,
             Some(token) => {
-                if token.kind != kind {
-                    eprintln!("{}: error: expected token kind {}, but got {}", token.loc, kind, token.kind);
-                    exit(1);
-                }
-                token
-            },
+                eprintln!("{}: error: expected {}, but got {}", token.loc, kind, token);
+                exit(1);
+            }
             None => unreachable!(),
         }
     }
@@ -584,12 +551,8 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
     fn expect_keyword(&mut self, keyword: &str) -> Token {
         match self.tokens.next() {
             Some(token) => {
-                if token.kind != TokenKind::Keyword {
-                    eprintln!("{}: error: expected keyword, but got `{}`", token.loc, token.kind);
-                    exit(1);
-                }
-                if token.text != keyword {
-                    eprintln!("{}: error: expected keyword `{}`, but got `{}`", token.loc, keyword, token.text);
+                if token.kind != TokenKind::Keyword || token.text != keyword {
+                    eprintln!("{}: error: expected keyword `{}`, but got {}", token.loc, keyword, token);
                     exit(1);
                 }
                 token
@@ -735,4 +698,5 @@ fn get_zero_value(typ: Type, loc: Loc) -> Expr {
         Type::Void => unreachable!(),
     }
 }
+
 // TODO: Introduce support for constants

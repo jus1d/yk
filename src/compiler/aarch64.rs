@@ -564,7 +564,7 @@ fn execute_command(verbose: bool, program: &str, args: &[&str]) -> Result<Output
 
     match output {
         Ok(ref out) if !out.status.success() => {
-            eprintln!("ERROR: command failed with status: {}", out.status);
+            eprintln!("error: command failed with status: {}", out.status);
             if !out.stdout.is_empty() {
                 eprintln!("{}", String::from_utf8_lossy(&out.stdout));
             }
@@ -573,7 +573,7 @@ fn execute_command(verbose: bool, program: &str, args: &[&str]) -> Result<Output
             }
         },
         Err(ref err) => {
-            eprintln!("ERROR: failed to execute command: {}", err);
+            eprintln!("error: failed to execute command: {}", err);
         },
         _ => {}
     }

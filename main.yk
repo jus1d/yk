@@ -1,1 +1,3 @@
-fn main() int64 => 69;
+fn main(int64 'a') int64 {
+    ret 69;
+}

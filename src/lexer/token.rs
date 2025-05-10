@@ -61,33 +61,33 @@ impl fmt::Display for TokenKind {
                 TokenKind::Number => "number",
                 TokenKind::String => "string",
                 TokenKind::Char => "char",
-                TokenKind::OpenParen => "(",
-                TokenKind::CloseParen => ")",
-                TokenKind::OpenCurly => "{",
-                TokenKind::CloseCurly => "}",
-                TokenKind::OpenBracket => "[",
-                TokenKind::CloseBracket => "]",
-                TokenKind::Colon => ";",
-                TokenKind::Semicolon => ";",
-                TokenKind::Comma => ",",
-                TokenKind::Plus => "+",
-                TokenKind::Minus => "-",
-                TokenKind::Star => "*",
-                TokenKind::Slash => "/",
-                TokenKind::Assign => "=",
-                TokenKind::EqualEqual => "==",
-                TokenKind::NotEqual => "!=",
-                TokenKind::Greater => ">",
-                TokenKind::Less => "<",
-                TokenKind::GreaterEqual => ">=",
-                TokenKind::LessEqual => "<=",
-                TokenKind::Exclamation => "!",
-                TokenKind::Percent => "%",
-                TokenKind::Pipe => "|",
-                TokenKind::DoublePipe => "||",
-                TokenKind::Ampersand => "&",
-                TokenKind::DoubleAmpersand => "&&",
-                TokenKind::FatArrow => "=>",
+                TokenKind::OpenParen => "`(`",
+                TokenKind::CloseParen => "`)`",
+                TokenKind::OpenCurly => "`{`",
+                TokenKind::CloseCurly => "`}`",
+                TokenKind::OpenBracket => "`[`",
+                TokenKind::CloseBracket => "`]`",
+                TokenKind::Colon => "`;`",
+                TokenKind::Semicolon => "`;`",
+                TokenKind::Comma => "`,`",
+                TokenKind::Plus => "`+`",
+                TokenKind::Minus => "`-`",
+                TokenKind::Star => "`*`",
+                TokenKind::Slash => "`/`",
+                TokenKind::Assign => "`=`",
+                TokenKind::EqualEqual => "`==`",
+                TokenKind::NotEqual => "`!=`",
+                TokenKind::Greater => "`>`",
+                TokenKind::Less => "`<`",
+                TokenKind::GreaterEqual => "`>=`",
+                TokenKind::LessEqual => "`<=`",
+                TokenKind::Exclamation => "`!`",
+                TokenKind::Percent => "`%`",
+                TokenKind::Pipe => "`|`",
+                TokenKind::DoublePipe => "`||`",
+                TokenKind::Ampersand => "`&`",
+                TokenKind::DoubleAmpersand => "`&&`",
+                TokenKind::FatArrow => "`=>`",
                 TokenKind::EOF => "EOF",
             }
         )
@@ -99,6 +99,16 @@ pub struct Token {
     pub text: String,
     pub number: i64,
     pub loc: Loc,
+}
+
+impl fmt::Display for Token {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use TokenKind::*;
+        match self.kind {
+            Keyword | Identifier | Number | String | Char => write!(f, "{} `{}`", self.kind, self.text),
+            _ => write!(f, "{}", self.kind),
+        }
+    }
 }
 
 impl Token {
