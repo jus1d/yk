@@ -249,7 +249,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
             }
         }
 
-        self.expect(TokenKind::CloseCurly);
+        // self.expect(TokenKind::CloseCurly);
 
         return statements;
     }
