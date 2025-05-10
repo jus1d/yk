@@ -6,7 +6,7 @@ pub mod lexer;
 pub mod diag;
 pub mod opts;
 
-use std::fs;
+use std::{fs, process::exit};
 use opts::Opts;
 
 fn main() {
@@ -18,7 +18,8 @@ fn main() {
     }
 
     let source = fs::read_to_string(&opts.input_path).unwrap_or_else(|_| {
-        diag::fatal!("failed to read from file '{}'", opts.input_path);
+        eprintln!("error: failed to read from file '{file}'", file = opts.input_path);
+        exit(1);
     });
 
     let lexer = lexer::Lexer::new(source.chars(), &opts.input_path);

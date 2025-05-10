@@ -3,13 +3,14 @@ use crate::parser::ast;
 use crate::diag;
 
 use std::collections::HashMap;
+use std::process::exit;
 use ast::{Ast, Function, Statement, Expr, Literal, BinaryOp, UnaryOp, Type, Variable};
 
 pub fn typecheck(ast: &Ast) {
     let builtin_funcs = HashMap::from([
         (String::from("write"), Function {
             name: String::from("write"),
-            name_loc: Loc::unused(),
+            name_loc: Loc::empty(),
             ret_type: Type::Int64,
             params: vec![
                 Variable {
@@ -29,7 +30,7 @@ pub fn typecheck(ast: &Ast) {
         }),
         (String::from("putc"), Function {
             name: String::from("putc"),
-            name_loc: Loc::unused(),
+            name_loc: Loc::empty(),
             ret_type: Type::Void,
             params: vec![Variable {
                 name: String::from("ch"),
@@ -39,7 +40,7 @@ pub fn typecheck(ast: &Ast) {
         }),
         (String::from("puti"), Function {
             name: String::from("puti"),
-            name_loc: Loc::unused(),
+            name_loc: Loc::empty(),
             ret_type: Type::Void,
             params: vec![Variable {
                 name: String::from("val"),
@@ -49,7 +50,7 @@ pub fn typecheck(ast: &Ast) {
         }),
         (String::from("exit"), Function {
             name: String::from("exit"),
-            name_loc: Loc::unused(),
+            name_loc: Loc::empty(),
             ret_type: Type::Never,
             params: vec![Variable {
                 name: String::from("code"),
@@ -251,7 +252,8 @@ fn typecheck_funcall(ast: &Ast, name: &str, args: &[Expr], loc: &Loc, vars: &Vec
     } else if let Some(func) = user_funcs.get(name) {
         func
     } else {
-        diag::fatal!(loc, "call to undeclared function `{}`", name);
+        eprintln!("{}: error: call to undeclared function `{}`", loc, name);
+        exit(1);
     };
 
     check_arguments_count(name, loc, args.len(), func.params.len());
@@ -351,7 +353,8 @@ fn get_variable_type(name: &str, vars: &Vec<Variable>, loc: &Loc) -> Type {
         }
     }
 
-    diag::fatal!(loc, "variable `{}` not found in this scope", name);
+    eprintln!("{}: error: variable `{}` not found in current scope", loc, name);
+    exit(1);
 }
 
 fn get_index_type(ast: &Ast, expr: &Expr, vars: &Vec<Variable>, builtin_funcs: &HashMap<String, Function>) -> Type {

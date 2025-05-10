@@ -1,13 +1,13 @@
 pub mod ast;
 
-use crate::lexer::{self, Loc, Token, TokenKind, KEYWORDS};
 use crate::diag;
+use crate::lexer::{self, Loc, Token, TokenKind, KEYWORDS};
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::{fmt, fs};
 use std::iter::Peekable;
-use std::process::Command;
+use std::process::{exit, Command};
 use ast::{Ast, Function, Branch, Statement, Expr, Literal, BinaryOp, UnaryOp, Type, Variable};
 
 pub struct Parser<Tokens> where Tokens: Iterator<Item = Token> {
@@ -41,27 +41,44 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                             ast.functions.insert(name, func);
                         }
                     },
-                    _ => diag::fatal!(token.loc, "unexpected keyword: `{}`", token.text)
+                    _ => {
+                        eprintln!("{}: error: unexpected keyword `{}`", token.loc, token.text);
+                        eprintln!("{}: note: items can start with: `include` or `fn`", token.loc);
+                        exit(1);
+                    }
                 },
-                _ => diag::fatal!(token.loc, "expected keyword, but got `{}`", token.text),
+                _ => {
+                    eprintln!("{}: error: expected keyword, but got `{}`", token.loc, token.text);
+                    eprintln!("{}: note: items can start with next keywords: `include` or `fn`", token.loc);
+                    exit(1);
+                },
             }
         }
 
         ast
     }
 
+    fn parse_identifier(&mut self) -> Token {
+        match self.tokens.next() {
+            None => {
+                eprintln!("error: expected identifier, but got EOF");
+                exit(1);
+            },
+            Some(token) if token.kind == TokenKind::Identifier => token,
+            Some(token) => {
+                eprintln!("{}: error: expected identifier, but got `{}`", token.loc, token.text);
+                exit(1);
+            }
+        }
+    }
+
     fn parse_function(&mut self) -> Function {
         self.expect_keyword("fn");
-        let name_token = match self.tokens.next() {
-            None => diag::fatal!("expected identifier, but got EOF"),
-            Some(token) => token,
-        };
-        if name_token.kind != TokenKind::Identifier {
-            diag::fatal!(name_token.loc, "expected identifier, got `{}`", name_token.text);
-        }
+        let name_token = self.parse_identifier();
 
         if KEYWORDS.contains(&name_token.text.as_str()) {
-            diag::fatal!(name_token.loc, "function name collides with reserved keyword `{}`", name_token.text);
+            eprintln!("{}: error: function name collides with reserved keyword `{}`", name_token.loc, name_token.text);
+            exit(1);
         }
 
         self.expect(TokenKind::OpenParen);
@@ -73,11 +90,17 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                 params.push(self.parse_type_and_name());
 
                 match self.tokens.next() {
-                    None => diag::fatal!("expected either comma or close paren, but got EOF"),
+                    None => {
+                        eprintln!("error: expected either comma or close paren, but got EOF");
+                        exit(1);
+                    },
                     Some(token) => match token.kind {
                         TokenKind::Comma => continue,
                         TokenKind::CloseParen => break,
-                        _ => diag::fatal!("expected either comma or close paren, but got `{}`", token.text),
+                        _ => {
+                            eprintln!("{}: error: expected either comma or close paren, but got `{}`", token.loc, token.text);
+                            exit(1);
+                        },
                     }
                 }
             }
@@ -85,15 +108,21 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
 
         let return_type = if let Some(token) = self.tokens.next_if(|token| token.kind == TokenKind::Identifier || token.kind == TokenKind::Exclamation) {
             match get_primitive_type(&token.text) {
-                None => diag::fatal!(token.loc, "unknown type `{}`", token.text),
                 Some(typ) => typ,
+                None => {
+                    eprintln!("{}: error: unknown type `{}`", token.loc, token.text);
+                    exit(1);
+                },
             }
         } else {
             Type::Void
         };
 
         match self.tokens.peek() {
-            None => diag::fatal!("expected function body or return type, but got EOF"),
+            None => {
+                eprintln!("expected function body or return type, but got EOF");
+                exit(1);
+            },
             Some(token) => match token.kind {
                 TokenKind::FatArrow => {
                     self.expect(TokenKind::FatArrow);
@@ -134,13 +163,17 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                 TokenKind::Identifier => {
                     let typ = match get_primitive_type(&token.text) {
                         Some(typ) => typ,
-                        None => diag::fatal!(token.loc, "unknown type `{}`", &token.text),
+                        None => {
+                            eprintln!("{}: error: unknown type `{}`", token.loc, token.text);
+                            exit(1);
+                        },
                     };
 
                     match self.tokens.next() {
                         Some(token) => {
                             if token.kind != TokenKind::Identifier {
-                                diag::fatal!(token.loc, "expected identifier, but got `{}`", token.text);
+                                eprintln!("{}: error: expected identifier, but got `{}`", token.loc, token.text);
+                                exit(1);
                             }
 
                             return Variable {
@@ -151,7 +184,10 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                         None => diag::fatal!("expected identifier, but got EOF")
                     }
                 }
-                _ => diag::fatal!(token.loc, "expected identifier, got `{}`", token.text),
+                _ => {
+                    eprintln!("{}: error: expected identifier, got `{}`", token.loc, token.text);
+                    exit(1);
+                },
             },
         }
     }
@@ -164,7 +200,8 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
         };
 
         if include_path_token.kind != TokenKind::String {
-            diag::fatal!(include_path_token.loc, "expected `{}` as include path, got token kind `{}`", TokenKind::String, include_path_token.kind);
+            eprintln!("{}: error: expected string as include path, but got token kind `{}`", include_path_token.loc, include_path_token.kind);
+            exit(1);
         }
 
         self.expect(TokenKind::Semicolon);
@@ -172,19 +209,21 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
         let include_path = include_path_token.text;
         if let Some(ext) = Path::new(&include_path).extension().and_then(|ext| ext.to_str()) {
             if ext != "yk" {
-                diag::fatal!(include_path_token.loc, "included file '{}' has wrong extension: `{}`, expected `yk`", include_path, ext);
+                eprintln!("{}: error: included file '{}' has wrong extension: `{}`, expected `yk`", include_path_token.loc, include_path, ext);
+                exit(1);
             }
         } else {
-            diag::fatal!(include_path_token.loc, "included file '{}' has wrong extension", include_path);
+            eprintln!("{}: error: included file '{}' has wrong extension", include_path_token.loc, include_path);
+            exit(1);
         }
 
         let source = if include_path.starts_with("https://") {
             read_source_via_https(&include_path, include_path_token.loc)
         } else {
             if self.include_folders.len() == 0 {
-                diag::fatal!(include_path_token.loc,
-                    "no include folders added, to find file `{}`",
-                    include_path);
+                eprintln!("{}: error: no include folders added, to find file `{}`",
+                    include_path_token.loc, include_path);
+                exit(1);
             }
 
             let mut found_path: Option<PathBuf> = None;
@@ -192,7 +231,9 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                 let path = Path::new(&folder).join(&include_path);
                 if path.exists() {
                     if let Some(found_path) = found_path {
-                        diag::fatal!(include_path_token.loc, "cannot determine which file to include, some options: {}, {}", path.to_str().unwrap(), found_path.to_str().unwrap());
+                        eprintln!("{}: error: cannot determine which file to include, some options: {}, {}",
+                            include_path_token.loc, path.to_str().unwrap(), found_path.to_str().unwrap());
+                        exit(1);
                     }
                     found_path = Some(path);
                 }
@@ -200,7 +241,8 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
 
             match found_path {
                 Some(path) => fs::read_to_string(&path).unwrap_or_else(|err| {
-                    diag::fatal!(include_path_token.loc, "could not read included file '{}': {}", path.display(), err);
+                    eprintln!("{}: error: could not read included file '{}': {}", include_path_token.loc, path.display(), err);
+                    exit(1);
                 }),
                 None => {
                     let searched_paths = self.include_folders.iter()
@@ -208,9 +250,9 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                         .collect::<Vec<_>>()
                         .join(", ");
 
-                    diag::fatal!(include_path_token.loc,
-                        "included file '{}' not found in any of include folders: {}",
-                        include_path, searched_paths);
+                    eprintln!("{}: error: included file '{}' not found in any of include folders: {}",
+                        include_path_token.loc, include_path, searched_paths);
+                    exit(1);
                 }
             }
         };
@@ -368,7 +410,8 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                 _ => diag::fatal!(token.loc, "unexpected token: `{}`", token.kind),
             }
         } else {
-            diag::fatal!("expected expression, got EOF");
+            eprintln!("error: expected expression, got EOF");
+            exit(1);
         }
     }
 
@@ -436,11 +479,13 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                                 if token.kind == TokenKind::Identifier {
                                     token
                                 } else {
-                                    diag::fatal!(token.loc, "expected identifier, got `{}`", token.text);
+                                    eprintln!("{}: error: expected identifier, got `{}`", token.loc, token.text);
+                                    exit(1);
                                 }
                             },
                             None => {
-                                diag::fatal!("expected identifier, got EOF");
+                                eprintln!("expected identifier, got EOF");
+                                exit(1);
                             }
                         };
 
@@ -464,7 +509,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                                     }
 
                                     if self.tokens.next_if(|token| token.kind == TokenKind::Semicolon).is_some() {
-                                        let value = get_zero_value(typ.clone(), Loc::unused());
+                                        let value = get_zero_value(typ.clone(), Loc::empty());
                                         return Statement::Declaration { name: name_token.text, name_loc: name_token.loc, typ: Some(typ), value };
                                     }
 
@@ -570,11 +615,13 @@ fn read_source_via_https(url: &str, include_loc: Loc) -> String {
     };
 
     if !output.status.success() {
-        diag::fatal!(include_loc, "can't include via HTTPS: {}", url);
+        eprintln!("{}: error: can't include via HTTPS: {}", include_loc, url);
+        exit(1);
     }
 
     let source = String::from_utf8(output.stdout).unwrap_or_else(|err| {
-        diag::fatal!(include_loc, "can't read source from response: {}", err);
+        eprintln!("{}: error: can't read source from response: {}", include_loc, err);
+        exit(1);
     });
 
     source

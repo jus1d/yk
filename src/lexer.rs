@@ -1,10 +1,8 @@
-use crate::diag;
-use crate::parser::ast;
+use crate::parser::ast::Type;
 
 use std::fmt;
 use std::iter::Peekable;
-use std::path::Path;
-use ast::Type;
+use std::process::exit;
 
 pub const KEYWORDS: &[&str] = &[
     "include", "fn", "struct",
@@ -125,22 +123,15 @@ impl Token {
 
 #[derive(Clone, Debug)]
 pub struct Loc {
-    pub filename: String,
+    pub path: String,
     pub line: usize,
     pub col: usize,
 }
 
 impl Loc {
     pub fn new(path: &str, line: usize, col: usize) -> Self {
-        let filename = Path::new(path)
-            .file_name()
-            .and_then(|s| s.to_str())
-            .unwrap_or_else(|| {
-                diag::fatal!("invalid path: {path}");
-            });
-
         Loc {
-            filename: filename.to_string(),
+            path: path.to_string(),
             line,
             col,
         }
@@ -148,9 +139,9 @@ impl Loc {
 
     // NOTE: Use this function, only if you SURE that this location will never used.
     // For example in syntactical sugar, that isn't reported for user
-    pub fn unused() -> Self {
+    pub fn empty() -> Self {
         Loc {
-            filename: String::new(),
+            path: String::new(),
             line: 0,
             col: 0,
         }
@@ -159,7 +150,7 @@ impl Loc {
 
 impl fmt::Display for Loc {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}:{}:{}", self.filename, self.line + 1, self.col + 1)
+        write!(f, "{}:{}:{}", self.path, self.line + 1, self.col + 1)
     }
 }
 
@@ -207,7 +198,7 @@ impl<Chars: Iterator<Item = char> + Clone> Lexer<Chars> {
         }
     }
 
-    fn parse_string_or_char(&mut self, quote_char: char, loc: Loc) -> Option<Token> {
+    fn parse_string_or_char(&mut self, quote_char: char, loc: Loc) -> Token {
         self.cur += 1;
         let mut text = String::new();
         let is_char = quote_char == '\'';
@@ -226,33 +217,36 @@ impl<Chars: Iterator<Item = char> + Clone> Lexer<Chars> {
                         '\\' => text.push('\\'),
                         '\'' => text.push('\''),
                         '"' => text.push('"'),
-                        _ => diag::fatal!(loc, "unsupported escape sequence: \\{}", escaped_ch),
+                        _ => {
+                            eprintln!("{}: error: unsupported escape sequence: \\{}", loc, escaped_ch);
+                            eprintln!("{}: note: if you wanted to print `\\` character, use escaped one: `\\\\`", loc);
+                        },
                     }
                     continue;
                 } else {
-                    diag::fatal!(loc, "unfinished escape sequence");
+                    eprintln!("{}: error: unfinished escape sequence", loc);
+                    eprintln!("{}: note: if you wanted to print `\\` character, use escaped one: `\\\\`", loc);
+                    exit(1);
                 }
             }
 
             if ch == quote_char {
                 if is_char {
                     if text.len() != 1 {
-                        diag::fatal!(loc, "character literal must contain exactly one character");
+                        eprintln!("{}: error: char literal must be one character long, found `{}`", loc, text);
+                        exit(1);
                     }
-                    return Some(Token::with_text(TokenKind::Char, &text, loc));
+                    return Token::with_text(TokenKind::Char, &text, loc);
                 } else {
-                    return Some(Token::with_text(TokenKind::String, &text, loc));
+                    return Token::with_text(TokenKind::String, &text, loc);
                 }
             }
 
             text.push(ch);
-
-            if is_char && text.len() > 1 {
-                diag::fatal!(loc, "`{}` literal too long", Type::Char);
-            }
         }
 
-        diag::fatal!(loc, "unclosed `{}` literal", if is_char { Type::Char } else { Type::String });
+        eprintln!("{}: error: unclosed {} literal", loc, if is_char { Type::Char } else { Type::String });
+        exit(1);
     }
 }
 
@@ -273,7 +267,7 @@ impl<Chars: Iterator<Item = char> + Clone> Iterator for Lexer<Chars> {
         self.cur += 1;
 
         if ch == '\'' || ch == '"' {
-            return self.parse_string_or_char(ch, loc);
+            return Some(self.parse_string_or_char(ch, loc));
         }
 
         text.push(ch);
@@ -295,7 +289,8 @@ impl<Chars: Iterator<Item = char> + Clone> Iterator for Lexer<Chars> {
                 return Some(Token::with_text(TokenKind::Identifier, &text, loc));
             }
 
-            diag::fatal!(loc, "cannot parse token as identifier: `{}`", text);
+            eprintln!("{}: error: cannot parse token as identifier: `{}`", loc, text);
+            exit(1);
         }
 
         match ch {
@@ -358,7 +353,10 @@ impl<Chars: Iterator<Item = char> + Clone> Iterator for Lexer<Chars> {
                 }
                 return Some(Token::with_text(TokenKind::Exclamation, "!", loc));
             },
-            _ => diag::fatal!(loc, "unexpected character `{}`", ch),
+            _ => {
+                eprintln!("{}: error: unexpected character `{}`", loc, ch);
+                exit(1);
+            },
         }
     }
 }

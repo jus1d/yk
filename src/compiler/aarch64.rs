@@ -1,10 +1,9 @@
-use crate::diag;
 use crate::parser::ast;
 
 use ast::{Ast, Function, Statement, Expr, Literal, BinaryOp, UnaryOp};
 use std::collections::BTreeSet;
 use std::io::{self, Write};
-use std::process::{Command, Output};
+use std::process::{exit, Command, Output};
 
 pub struct Generator<'a> {
     out: Vec<u8>,
@@ -539,7 +538,8 @@ pub fn generate_object_from_assembly(verbose: bool, assembly_path: &str, object_
     execute_command(verbose, "as",
         &["-arch", "arm64", "-o", object_path, assembly_path])
         .unwrap_or_else(|_| {
-            diag::fatal!("cannot create object file");
+            eprintln!("error: cannot create object file");
+            exit(1);
         });
 }
 
@@ -550,7 +550,8 @@ pub fn link_object_file(verbose: bool, object_path: &str, output_path: &str) {
     execute_command(verbose, "ld",
         &["-o", output_path, object_path, "-lSystem", "-syslibroot", &sdk_path, "-e", "_start", "-arch", "arm64"])
         .unwrap_or_else(|_| {
-            diag::fatal!("cannot link object file to executable");
+            eprintln!("error: cannot link object file to executable");
+            exit(1);
         });
 }
 
