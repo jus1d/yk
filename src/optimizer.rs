@@ -1,8 +1,7 @@
-use crate::diag;
 use crate::lexer::token::Loc;
 use crate::parser::ast;
 
-use std::collections::HashSet;
+use std::{collections::HashSet, process::exit};
 use ast::{Ast, Statement, Expr, Literal, BinaryOp, UnaryOp};
 
 pub fn precompute_expressions(ast: &mut Ast) {
@@ -129,7 +128,10 @@ fn get_integer_value(expr: &Expr) -> Option<i64> {
 pub fn eliminate_unused_functions(ast: &mut Ast) {
     let main = match ast.functions.get("main") {
         Some(func) => func,
-        None => diag::fatal!("no `main` function found"),
+        None => {
+            eprintln!("cannot eliminate unused function, because entry point not declared");
+            exit(1);
+        },
     };
 
     let mut used_funcs = HashSet::new();

@@ -3,7 +3,6 @@ pub mod compiler;
 pub mod analyzer;
 pub mod parser;
 pub mod lexer;
-pub mod diag;
 pub mod opts;
 
 use std::{fs, process::exit};
@@ -14,7 +13,8 @@ fn main() {
     let opts = Opts::parse_args(args);
 
     if opts.disable_analyzing && opts.enable_optimization {
-        diag::fatal!("cannot enable optimizations, if `--unsafe` used")
+        eprintln!("cannot enable optimizations, if `--unsafe` used");
+        exit(1);
     }
 
     let source = fs::read_to_string(&opts.input_path).unwrap_or_else(|_| {

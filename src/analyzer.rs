@@ -1,6 +1,5 @@
 use crate::lexer::token::{Loc, KEYWORDS};
 use crate::parser::ast;
-use crate::diag;
 
 use std::collections::HashMap;
 use std::process::exit;
@@ -62,7 +61,8 @@ pub fn typecheck(ast: &Ast) {
 
     for (name, function) in &ast.functions {
         if builtin_funcs.contains_key(name.as_str()) {
-            diag::fatal!(function.name_loc, "symbol `{name}` is a builtin function name");
+            eprintln!("{}: error: symbol `{}` is a builtin function name", function.name_loc, name);
+            exit(1);
         }
 
         let mut vars: Vec<Variable> = vec![];
@@ -89,7 +89,8 @@ fn typecheck_statement(ast: &Ast, func: &Function, statement: &Statement, vars: 
                 let expected_type = &func.ret_type;
                 let actual_type = &get_expression_type(ast, value, vars, builtin_funcs);
                 if actual_type != expected_type {
-                    diag::fatal!(value.clone().loc(), "mismatched type of return expression. expected `{}`, but got `{}`", expected_type, actual_type);
+                    eprintln!("{}: error: mismatched type of return expression. expected `{}`, but got `{}`", value.clone().loc(), expected_type, actual_type);
+                    exit(1);
                 }
 
                 typecheck_expr(ast, value, vars, builtin_funcs, &ast.functions);
@@ -100,7 +101,8 @@ fn typecheck_statement(ast: &Ast, func: &Function, statement: &Statement, vars: 
                 let actual_type = get_expression_type(ast, &branch.condition, vars, builtin_funcs);
                 let expected_type = Type::Bool;
                 if actual_type != expected_type {
-                    diag::fatal!(branch.condition.clone().loc(), "expected a `{}` condition, got `{}`", expected_type, actual_type);
+                    eprintln!("{}: error: expected a `{}` condition, got `{}`", branch.condition.clone().loc(), expected_type, actual_type);
+                    exit(1);
                 }
 
                 for statement in &branch.block {
@@ -117,7 +119,8 @@ fn typecheck_statement(ast: &Ast, func: &Function, statement: &Statement, vars: 
                 let actual_type = get_expression_type(ast, condition, vars, builtin_funcs);
                 let expected_type = Type::Bool;
                 if actual_type != expected_type {
-                    diag::fatal!(condition.clone().loc(), "expected a `{}` condition, got `{}`", expected_type, actual_type);
+                    eprintln!("{}: error: expected a `{}` condition, got `{}`", condition.clone().loc(), expected_type, actual_type);
+                    exit(1);
                 }
             }
 
@@ -127,11 +130,11 @@ fn typecheck_statement(ast: &Ast, func: &Function, statement: &Statement, vars: 
         },
         Statement::Declaration { name, name_loc, typ, value } => {
             if KEYWORDS.contains(&name.as_str()) {
-                diag::fatal!(name_loc, "variable name collides with reserved keyword `{}`", name);
+                eprintln!("{}: error: variable name collides with reserved keyword `{}`", name_loc, name);
             }
 
             if ast.functions.get(name).is_some() {
-                diag::fatal!(name_loc, "variable name collides with defined function `{}`", name);
+                eprintln!("{}: error: variable name collides with defined function `{}`", name_loc, name);
             }
 
             match typ {
@@ -139,7 +142,8 @@ fn typecheck_statement(ast: &Ast, func: &Function, statement: &Statement, vars: 
                     let actual_type = get_expression_type(ast, value, vars, builtin_funcs);
                     let expected_type = typ.clone();
                     if actual_type != expected_type {
-                        diag::fatal!(value.clone().loc(), "expected expression of type `{}`, but got `{}`", expected_type, actual_type);
+                        eprintln!("{}: error: expected expression of type `{}`, but got `{}`", value.clone().loc(), expected_type, actual_type);
+                        exit(1);
                     }
 
                     vars.push(Variable {
@@ -162,11 +166,13 @@ fn typecheck_statement(ast: &Ast, func: &Function, statement: &Statement, vars: 
             if let Some(variable) = vars.iter().find(|var| var.name == *name) {
                 let expected_type = variable.typ.clone();
                 if actual_type != expected_type {
-                    diag::fatal!(name_loc, "assignment to `{}`: expected type `{}`, but got `{}`", name, expected_type, actual_type);
+                    eprintln!("{}: error: assignment to `{}`: expected type `{}`, but got `{}`", name_loc, name, expected_type, actual_type);
+                    exit(1);
                 }
             }
             else {
-                diag::fatal!(name_loc, "variable `{}` not found in this scope", name);
+                eprintln!("{}: error: variable `{}` not found in this scope", name_loc, name);
+                exit(1);
             }
         },
     }
@@ -178,26 +184,32 @@ fn typecheck_binop(ast: &Ast, op: &BinaryOp, lhs: &Expr, rhs: &Expr, loc: &Loc, 
     match op {
         BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Div | BinaryOp::Mod => {
             if lhs_type != Type::Int64 {
-                diag::fatal!(loc, "binary operation `{}` only supported for type `int64`", op);
+                eprintln!("{}: error: binary operation `{}` only supported for type `int64`", loc, op);
+                exit(1);
             }
             if rhs_type != Type::Int64 {
-                diag::fatal!(loc, "binary operation `{}` only supported for type `int64`", op);
+                eprintln!("{}: error: binary operation `{}` only supported for type `int64`", loc, op);
+                exit(1);
             }
         },
         BinaryOp::EQ | BinaryOp::NE | BinaryOp::GT | BinaryOp::LT | BinaryOp::LE | BinaryOp::GE => {
             if lhs_type != rhs_type {
-                diag::fatal!(loc, "operands of different types. lhs: `{}`, rhs: `{}`", lhs_type, rhs_type);
+                eprintln!("{}: error: operands of different types. lhs: `{}`, rhs: `{}`", loc, lhs_type, rhs_type);
+                exit(1);
             }
             if lhs_type != Type::Int64 && lhs_type != Type::Bool {
-                diag::fatal!(loc, "operands of different types. logical operations can be applied only for `int64` or `bool`");
+                eprintln!("{}: error: operands of different types. logical operations can be applied only for `int64` or `bool`", loc);
+                exit(1);
             }
         },
         BinaryOp::LogicalOr | BinaryOp::LogicalAnd => {
             if lhs_type != Type::Bool {
-                diag::fatal!(lhs.clone().loc(), "logical operations only supported between booleans");
+                eprintln!("{}: error: logical operations only supported between booleans", lhs.clone().loc());
+                exit(1);
             }
             if rhs_type != Type::Bool {
-                diag::fatal!(rhs.clone().loc(), "logical operations only supported between booleans");
+                eprintln!("{}: error: logical operations only supported between booleans", rhs.clone().loc());
+                exit(1);
             }
         }
     }
@@ -208,7 +220,7 @@ fn typecheck_unary(ast: &Ast, op: &UnaryOp, operand: &Expr, vars: &Vec<Variable>
     match op {
         UnaryOp::Negate => {
             if operand_type != Type::Int64 {
-                diag::fatal!(operand.clone().loc(), "unary operator `{}` cannot be applied to `{}`, expected `{}`", UnaryOp::Negate, operand_type, Type::Int64);
+                eprintln!("{}: error: unary operator `{}` cannot be applied to `{}`, expected `{}`", operand.clone().loc(), UnaryOp::Negate, operand_type, Type::Int64);
             }
         },
     }
@@ -228,19 +240,22 @@ fn typecheck_expr(ast: &Ast, expr: &Expr, vars: &Vec<Variable>, builtin_funcs: &
         }
         Expr::Variable { name, loc } => {
             if vars.iter().find(|var| var.name == *name).is_none() {
-                diag::fatal!(loc, "variable `{}` not found in this scope", name);
+                eprintln!("{}: error: variable `{}` not found in this scope", loc, name);
+                exit(1);
             }
         },
         Expr::Index { collection, index, loc } => {
             let collection_type = get_expression_type(ast, collection, vars, builtin_funcs);
             if collection_type != Type::String {
-                diag::fatal!(loc, "type `{}` is not indexable", collection_type)
+                eprintln!("{}: error: type `{}` is not indexable", loc, collection_type);
+                exit(1);
             }
 
             let actual_index_type = get_expression_type(ast, index, vars, builtin_funcs);
             let expected_index_type = Type::Int64;
             if actual_index_type != Type::Int64 {
-                diag::fatal!(loc, "expected expression of type `{}` as an index, got `{}`", expected_index_type, actual_index_type);
+                eprintln!("{}: error: expected expression of type `{}` as an index, got `{}`", loc, expected_index_type, actual_index_type);
+                exit(1);
             }
         },
     }
@@ -266,17 +281,20 @@ fn typecheck_funcall(ast: &Ast, name: &str, args: &[Expr], loc: &Loc, vars: &Vec
         let expected_type = &func.params[i].typ;
         let actual_type = &get_expression_type(ast, arg, vars, builtin_funcs);
         if expected_type != actual_type {
-            diag::fatal!(arg.clone().loc(), "mismatched arguments types. expected `{}`, but got `{}`", expected_type, actual_type);
+            eprintln!("{}: error: mismatched arguments types. expected `{}`, but got `{}`", arg.clone().loc(), expected_type, actual_type);
+            exit(1);
         }
     }
 }
 
 fn check_arguments_count(func_name: &str, loc: &Loc, actual: usize, expected: usize) {
     if actual < expected {
-        diag::fatal!(loc, "too few arguments to function call `{}`, expected {}, got {}", func_name, expected, actual);
+        eprintln!("{}: error: too few arguments to function call `{}`, expected {}, got {}", loc, func_name, expected, actual);
+        exit(1);
     }
     else if actual > expected {
-        diag::fatal!(loc, "too many arguments to function call `{}`, expected {}, got {}", func_name, expected, actual);
+        eprintln!("{}: error: too many arguments to function call `{}`, expected {}, got {}", loc, func_name, expected, actual);
+        exit(1);
     }
 }
 
@@ -284,13 +302,18 @@ pub fn check_entrypoint_declaration(ast: &Ast) {
     match ast.functions.get("main") {
         Some(func) => {
             if func.params.len() > 0 {
-                diag::fatal!(func.name_loc, "function `main` should not accept any parameters");
+                eprintln!("{}: error: function `main` should not accept any parameters", func.name_loc);
+                exit(1);
             }
             if func.ret_type != Type::Int64 {
-                diag::fatal!("expect `fn main` to return `{}`", Type::Int64);
+                eprintln!("error: expect `fn main` to return `{}`", Type::Int64);
+                exit(1);
             }
         }
-        None => diag::fatal!("undefined entry point, expected: `fn main() int64`"),
+        None => {
+            eprintln!("error: no entry point found, expected: `fn main() int64`");
+            exit(1);
+        },
     }
 }
 
@@ -342,7 +365,10 @@ fn get_funcall_type(ast: &Ast, name: &str, loc: &Loc, builtin_funcs: &HashMap<St
 
     match builtin_funcs.get(name) {
         Some(func) => func.ret_type.clone(),
-        None => diag::fatal!(loc, "function `{}` not found in current scope", name),
+        None => {
+            eprintln!("{}: error: function `{}` not found in current scope", loc, name);
+            exit(1);
+        },
     }
 }
 

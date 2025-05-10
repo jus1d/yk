@@ -1,5 +1,3 @@
-use crate::diag;
-
 use std::{env::Args, process::exit};
 
 macro_rules! usage {
@@ -54,7 +52,8 @@ impl Opts {
                         },
                         None => {
                             usage!(opts.program_name);
-                            diag::fatal!("argument to '-o' is missing");
+                            eprintln!("argument to '-o' is missing");
+                            exit(1);
                         },
                     }
                 },
@@ -87,7 +86,8 @@ impl Opts {
 
         if opts.input_path.is_empty() {
             usage!(opts.program_name);
-            diag::fatal!("no input files");
+            eprintln!("no input files");
+            exit(1);
         }
 
         opts

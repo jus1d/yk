@@ -1,6 +1,5 @@
 pub mod aarch64;
 
-use crate::diag;
 use crate::opts::Opts;
 use crate::parser::ast;
 
@@ -8,6 +7,7 @@ use ast::Ast;
 use std::fs::File;
 use std::io::Write;
 use std::path::Path;
+use std::process::exit;
 use std::time::Instant;
 
 pub struct Compiler {
@@ -25,7 +25,8 @@ impl Compiler {
         if cfg![target_arch = "aarch64"] {
             compile_aarch64_darwin(&self.ast, opts);
         } else {
-            diag::fatal!("unsupported architecture. only `aarch64` available now");
+            eprintln!("unsupported architecture. only `aarch64` available now");
+            exit(1);
         };
     }
 
@@ -45,17 +46,24 @@ fn compile_aarch64_darwin(ast: &Ast, opts: &Opts) {
     let start = Instant::now();
     let mut g = aarch64::Generator::new(ast, opts.emit_comments);
     g.generate().unwrap_or_else(|err| {
-        diag::fatal!("cannot generate assembly: {}", err)
+        eprintln!("error: cannot generate assembly: {}", err);
+        exit(1);
     });
 
     let mut out = match File::create(&assembly_path) {
         Ok(file) => file,
-        Err(err) => diag::fatal!("failed to open file `{}`: {}", &assembly_path, err),
+        Err(err) => {
+            eprintln!("failed to open file `{}`: {}", &assembly_path, err);
+            exit(1);
+        },
     };
 
     let bytes = g.into_bytes();
     match out.write_all(&bytes) {
-        Err(err) => diag::fatal!("cannot write assembly: {}", err),
+        Err(err) => {
+            eprintln!("cannot write assembly: {}", err);
+            exit(1);
+        },
         Ok(_) => {
             let elapsed = start.elapsed();
             if !opts.silent {
