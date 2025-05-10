@@ -126,17 +126,6 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
         };
     }
 
-    // this function parses constructions like: `int64 counter` (<type> <identifier>)
-    fn parse_type_and_name(&mut self) -> Variable {
-        let typ = self.parse_type();
-        let name_token = self.expect(TokenKind::Identifier);
-
-        return Variable {
-            typ,
-            name: name_token.text,
-        };
-    }
-
     fn parse_include(&mut self) -> Ast {
         self.expect_keyword("include");
         let include_path_token = self.expect(TokenKind::String);
@@ -200,28 +189,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
         return parser.parse_ast();
     }
 
-    fn parse_type(&mut self) -> Type {
-        use TokenKind::*;
-        match self.tokens.next() {
-            None => unreachable!(),
-            Some(token) => match token.kind {
-                Identifier | Exclamation => {
-                    if let Some(typ) = get_primitive_type(&token.text) {
-                        return typ;
-                    }
-
-                    eprintln!("{}: error: unknown type `{}`", token.loc, token.text);
-                    exit(1);
-                }
-                _ => {
-                    eprintln!("{}: error: expected type, but got {}", token.loc, token);
-                    exit(1);
-                },
-            },
-        }
-    }
-
-    pub fn parse_block(&mut self) -> Vec<Statement> {
+    fn parse_block(&mut self) -> Vec<Statement> {
         self.expect(TokenKind::OpenCurly);
 
         let mut statements = Vec::new();
@@ -236,140 +204,10 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
             }
         }
 
-        // self.expect(TokenKind::CloseCurly);
-
         return statements;
     }
 
-    pub fn parse_expression(&mut self) -> Expr {
-        self.parse_expr_prec(0)
-    }
-
-    fn parse_expr_prec(&mut self, min_prec: u8) -> Expr {
-        if let Some(token) = self.tokens.next_if(|token| token.kind == TokenKind::EOF) {
-            eprintln!("{}: error: expected expression, got EOF", token.loc);
-            exit(1);
-        }
-
-        if let Some(token) =  self.tokens.next_if(|token| token.kind == TokenKind::Minus) {
-            let operand = self.parse_expr_prec(10);
-            if matches!(operand, Expr::Unary { .. }) {
-                eprintln!("{}: error: cannot nest unary operations", operand.clone().loc());
-                exit(1);
-            }
-
-            return Expr::Unary { op: UnaryOp::Negate, operand: Box::new(operand), loc: token.loc }
-        }
-
-        let mut primary = self.parse_primary_expr();
-        if let Some(_) = self.tokens.next_if(|token| token.kind == TokenKind::OpenBracket) {
-            let index = self.parse_primary_expr();
-            self.expect(TokenKind::CloseBracket);
-
-            primary = Expr::Index { collection: Box::new(primary.clone()), index: Box::new(index), loc: primary.loc() }
-        }
-
-        loop {
-            let op = match self.tokens.peek() {
-                Some(token) => match token.kind {
-                    TokenKind::Plus => BinaryOp::Add,
-                    TokenKind::Minus => BinaryOp::Sub,
-                    TokenKind::Star => BinaryOp::Mul,
-                    TokenKind::Slash => BinaryOp::Div,
-                    TokenKind::EqualEqual => BinaryOp::EQ,
-                    TokenKind::NotEqual => BinaryOp::NE,
-                    TokenKind::Greater => BinaryOp::GT,
-                    TokenKind::Less => BinaryOp::LT,
-                    TokenKind::GreaterEqual => BinaryOp::GE,
-                    TokenKind::LessEqual => BinaryOp::LE,
-                    TokenKind::Percent => BinaryOp::Mod,
-                    TokenKind::DoublePipe => BinaryOp::LogicalOr,
-                    TokenKind::DoubleAmpersand => BinaryOp::LogicalAnd,
-                    _ => break,
-                },
-                None => break,
-            };
-
-            let prec = get_op_precedence(&op);
-            if prec < min_prec {
-                break;
-            }
-
-            let token = self.tokens.next().unwrap();
-
-            let rhs = self.parse_expr_prec(prec + 1);
-            primary = Expr::Binary {
-                op,
-                lhs: Box::new(primary),
-                rhs: Box::new(rhs),
-                loc: token.loc.clone(),
-            };
-        }
-
-        primary
-    }
-
-    fn parse_primary_expr(&mut self) -> Expr {
-        match self.tokens.next() {
-            Some(token) => match token.kind {
-                TokenKind::Number => return Expr::Literal { lit: Literal::Number(token.number), loc: token.loc },
-                TokenKind::String => return Expr::Literal { lit: Literal::String(token.text), loc: token.loc },
-                TokenKind::Char => return Expr::Literal { lit: Literal::Char(token.text.chars().nth(0).unwrap()), loc: token.loc },
-                TokenKind::Identifier => {
-                    // Funcall
-                    if self.tokens.next_if(|token| token.kind == TokenKind::OpenParen).is_some() {
-                        let mut args = Vec::new();
-
-                        if self.tokens.peek().is_some_and(|t| t.kind != TokenKind::CloseParen) {
-                            args.push(self.parse_expression());
-                            while self.tokens.next_if(|t| t.kind == TokenKind::Comma).is_some() {
-                                args.push(self.parse_expression());
-                            }
-                        }
-
-                        self.expect(TokenKind::CloseParen);
-                        return Expr::Funcall {
-                            name: token.text,
-                            args,
-                            loc: token.loc,
-                        };
-                    }
-
-                    // Boolean literals
-                    match token.text.as_str() {
-                        "true" => return Expr::Literal { lit: Literal::Bool(true), loc: token.loc },
-                        "false" => return Expr::Literal { lit: Literal::Bool(false), loc: token.loc },
-                        _ => {},
-                    }
-
-                    return Expr::Variable { name: token.text, loc: token.loc };
-                }
-                TokenKind::Keyword => {
-                    // Boolean literals
-                    match token.text.as_str() {
-                        "true" => return Expr::Literal { lit: Literal::Bool(true), loc: token.loc },
-                        "false" => return Expr::Literal { lit: Literal::Bool(false), loc: token.loc },
-                        _ => {
-                            eprintln!("{}: error: unexpected {}", token.loc, token);
-                            exit(1);
-                        },
-                    }
-                },
-                TokenKind::OpenParen => {
-                    let expr = self.parse_expression();
-                    self.expect(TokenKind::CloseParen);
-                    return expr;
-                },
-                _ => {
-                    eprintln!("{}: error: expected expression, but got {}", token.loc, token);
-                    exit(1);
-                },
-            },
-            None => unreachable!(),
-        }
-    }
-
-    pub fn parse_statement(&mut self) -> Statement {
+    fn parse_statement(&mut self) -> Statement {
         match self.tokens.next() {
             Some(token) => match token.kind {
                 TokenKind::Keyword => match token.text.as_str() {
@@ -509,6 +347,166 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                 },
             },
             None => unreachable!(),
+        }
+    }
+
+    fn parse_expression(&mut self) -> Expr {
+        self.parse_expr_prec(0)
+    }
+
+    fn parse_expr_prec(&mut self, min_prec: u8) -> Expr {
+        if let Some(token) = self.tokens.next_if(|token| token.kind == TokenKind::EOF) {
+            eprintln!("{}: error: expected expression, got EOF", token.loc);
+            exit(1);
+        }
+
+        if let Some(token) =  self.tokens.next_if(|token| token.kind == TokenKind::Minus) {
+            let operand = self.parse_expr_prec(10);
+            if matches!(operand, Expr::Unary { .. }) {
+                eprintln!("{}: error: cannot nest unary operations", operand.clone().loc());
+                exit(1);
+            }
+
+            return Expr::Unary { op: UnaryOp::Negate, operand: Box::new(operand), loc: token.loc }
+        }
+
+        let mut primary = self.parse_primary_expr();
+        if let Some(_) = self.tokens.next_if(|token| token.kind == TokenKind::OpenBracket) {
+            let index = self.parse_primary_expr();
+            self.expect(TokenKind::CloseBracket);
+
+            primary = Expr::Index { collection: Box::new(primary.clone()), index: Box::new(index), loc: primary.loc() }
+        }
+
+        loop {
+            let op = match self.tokens.peek() {
+                Some(token) => match token.kind {
+                    TokenKind::Plus => BinaryOp::Add,
+                    TokenKind::Minus => BinaryOp::Sub,
+                    TokenKind::Star => BinaryOp::Mul,
+                    TokenKind::Slash => BinaryOp::Div,
+                    TokenKind::EqualEqual => BinaryOp::EQ,
+                    TokenKind::NotEqual => BinaryOp::NE,
+                    TokenKind::Greater => BinaryOp::GT,
+                    TokenKind::Less => BinaryOp::LT,
+                    TokenKind::GreaterEqual => BinaryOp::GE,
+                    TokenKind::LessEqual => BinaryOp::LE,
+                    TokenKind::Percent => BinaryOp::Mod,
+                    TokenKind::DoublePipe => BinaryOp::LogicalOr,
+                    TokenKind::DoubleAmpersand => BinaryOp::LogicalAnd,
+                    _ => break,
+                },
+                None => break,
+            };
+
+            let prec = get_op_precedence(&op);
+            if prec < min_prec {
+                break;
+            }
+
+            let token = self.tokens.next().unwrap();
+
+            let rhs = self.parse_expr_prec(prec + 1);
+            primary = Expr::Binary {
+                op,
+                lhs: Box::new(primary),
+                rhs: Box::new(rhs),
+                loc: token.loc.clone(),
+            };
+        }
+
+        primary
+    }
+
+    fn parse_primary_expr(&mut self) -> Expr {
+        match self.tokens.next() {
+            Some(token) => match token.kind {
+                TokenKind::Number => return Expr::Literal { lit: Literal::Number(token.number), loc: token.loc },
+                TokenKind::String => return Expr::Literal { lit: Literal::String(token.text), loc: token.loc },
+                TokenKind::Char => return Expr::Literal { lit: Literal::Char(token.text.chars().nth(0).unwrap()), loc: token.loc },
+                TokenKind::Identifier => {
+                    // Funcall
+                    if self.tokens.next_if(|token| token.kind == TokenKind::OpenParen).is_some() {
+                        let mut args = Vec::new();
+
+                        if self.tokens.peek().is_some_and(|t| t.kind != TokenKind::CloseParen) {
+                            args.push(self.parse_expression());
+                            while self.tokens.next_if(|t| t.kind == TokenKind::Comma).is_some() {
+                                args.push(self.parse_expression());
+                            }
+                        }
+
+                        self.expect(TokenKind::CloseParen);
+                        return Expr::Funcall {
+                            name: token.text,
+                            args,
+                            loc: token.loc,
+                        };
+                    }
+
+                    // Boolean literals
+                    match token.text.as_str() {
+                        "true" => return Expr::Literal { lit: Literal::Bool(true), loc: token.loc },
+                        "false" => return Expr::Literal { lit: Literal::Bool(false), loc: token.loc },
+                        _ => {},
+                    }
+
+                    return Expr::Variable { name: token.text, loc: token.loc };
+                }
+                TokenKind::Keyword => {
+                    // Boolean literals
+                    match token.text.as_str() {
+                        "true" => return Expr::Literal { lit: Literal::Bool(true), loc: token.loc },
+                        "false" => return Expr::Literal { lit: Literal::Bool(false), loc: token.loc },
+                        _ => {
+                            eprintln!("{}: error: unexpected {}", token.loc, token);
+                            exit(1);
+                        },
+                    }
+                },
+                TokenKind::OpenParen => {
+                    let expr = self.parse_expression();
+                    self.expect(TokenKind::CloseParen);
+                    return expr;
+                },
+                _ => {
+                    eprintln!("{}: error: expected expression, but got {}", token.loc, token);
+                    exit(1);
+                },
+            },
+            None => unreachable!(),
+        }
+    }
+
+    // this function parses constructions like: `int64 counter` (<type> <identifier>)
+    fn parse_type_and_name(&mut self) -> Variable {
+        let typ = self.parse_type();
+        let name_token = self.expect(TokenKind::Identifier);
+
+        return Variable {
+            typ,
+            name: name_token.text,
+        };
+    }
+
+    fn parse_type(&mut self) -> Type {
+        use TokenKind::*;
+        match self.tokens.next() {
+            None => unreachable!(),
+            Some(token) => match token.kind {
+                Identifier | Exclamation => {
+                    if let Some(typ) = get_primitive_type(&token.text) {
+                        return typ;
+                    }
+
+                    eprintln!("{}: error: unknown type `{}`", token.loc, token.text);
+                    exit(1);
+                }
+                _ => {
+                    eprintln!("{}: error: expected type, but got {}", token.loc, token);
+                    exit(1);
+                },
+            },
         }
     }
 
