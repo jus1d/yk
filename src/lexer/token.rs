@@ -4,6 +4,7 @@ pub const KEYWORDS: &[&str] = &[
     "include", "fn",
     "let", "ret", "if", "else", "while",
     "true", "false",
+    "string", "bool", "int64", "char", "void"
 ];
 
 #[derive(PartialEq, Eq, Clone, Copy)]
@@ -67,7 +68,7 @@ impl fmt::Display for TokenKind {
                 TokenKind::CloseCurly => "`}`",
                 TokenKind::OpenBracket => "`[`",
                 TokenKind::CloseBracket => "`]`",
-                TokenKind::Colon => "`;`",
+                TokenKind::Colon => "`:`",
                 TokenKind::Semicolon => "`;`",
                 TokenKind::Comma => "`,`",
                 TokenKind::Plus => "`+`",

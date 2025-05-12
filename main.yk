@@ -1,6 +1,5 @@
-fn printf(string fmt);
+include "std.yk";
 
 fn main() int64 {
-    printf("Hello, world!\n");
     ret 0;
 }

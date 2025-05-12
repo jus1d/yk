@@ -1,6 +1,6 @@
 include "std/std.yk";
 
-fn fib(int64 x) int64 {
+fn fib(x: int64) int64 {
     if x == 0 {
         ret 0;
     } else if x == 1 {

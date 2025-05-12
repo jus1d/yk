@@ -488,8 +488,9 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
 
     // this function parses constructions like: `int64 counter` (<type> <identifier>)
     fn parse_type_and_name(&mut self) -> Variable {
-        let typ = self.parse_type();
         let name_token = self.expect(TokenKind::Identifier);
+        self.expect(TokenKind::Colon);
+        let typ = self.parse_type();
 
         return Variable {
             typ,
@@ -502,11 +503,11 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
         match self.tokens.next() {
             None => unreachable!(),
             Some(token) => match token.kind {
-                Identifier | Exclamation => {
+                Keyword| Identifier | Exclamation => {
                     if let Some(typ) = get_primitive_type(&token.text) {
                         return typ;
                     }
-                    eprintln!("{}: error: unknown type `{}`", token.loc, token.text);
+                    eprintln!("{}: error: expected type, but got {}", token.loc, token);
                     exit(1);
                 },
                 Star => {
