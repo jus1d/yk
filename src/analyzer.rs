@@ -26,6 +26,7 @@ pub fn typecheck(ast: &Ast) {
                 },
             ],
             body: vec![],
+            is_external: false,
         }),
         (String::from("putc"), Function {
             name: String::from("putc"),
@@ -36,6 +37,7 @@ pub fn typecheck(ast: &Ast) {
                 typ: Type::Char,
             }],
             body: vec![],
+            is_external: false,
         }),
         (String::from("puti"), Function {
             name: String::from("puti"),
@@ -46,6 +48,7 @@ pub fn typecheck(ast: &Ast) {
                 typ: Type::Int64,
             }],
             body: vec![],
+            is_external: false,
         }),
         (String::from("exit"), Function {
             name: String::from("exit"),
@@ -56,6 +59,7 @@ pub fn typecheck(ast: &Ast) {
                 typ: Type::Int64,
             }],
             body: vec![],
+            is_external: false,
         }),
     ]);
 

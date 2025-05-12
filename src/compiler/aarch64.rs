@@ -1,3 +1,4 @@
+use crate::opts::Opts;
 use crate::parser::ast;
 
 use ast::{Ast, Function, Statement, Expr, Literal, BinaryOp, UnaryOp};
@@ -45,6 +46,7 @@ impl<'a> Generator<'a> {
         self.write_preamble()?;
 
         for function in self.ast.functions.values() {
+            if function.is_external { continue; }
             self.write_func(function)?;
         }
 
@@ -62,16 +64,17 @@ impl<'a> Generator<'a> {
 
     fn write_preamble(&mut self) -> io::Result<()> {
         writeln!(self.out, ".global _start")?;
-        writeln!(self.out, ".align 2\n")?;
+        writeln!(self.out, ".align 2")?;
+        writeln!(self.out)?;
         writeln!(self.out, "_start:")?;
-        writeln!(self.out, "    bl      main")?;
+        writeln!(self.out, "    bl      _main")?;
         writeln!(self.out, "    mov     x16, 1")?;
         writeln!(self.out, "    svc     0\n")?;
         Ok(())
     }
 
     fn write_func(&mut self, func: &Function) -> io::Result<()> {
-        writeln!(self.out, "{}:", func.name)?;
+        writeln!(self.out, "_{}:", func.name)?;
 
         let params_count = func.params.len();
         let declarations_count = func.body.iter().filter(|s| matches!(s, Statement::Declaration { .. })).count();
@@ -415,7 +418,7 @@ impl<'a> Generator<'a> {
         }
 
         self.c(&format!("call: {}", name), true)?;
-        writeln!(self.out, "    bl      {}", name)?;
+        writeln!(self.out, "    bl      _{}", name)?;
 
         self.c("restore temp registers", true)?;
         writeln!(self.out, "    ldp     x11, x12, [sp], 16")?;
@@ -436,7 +439,7 @@ impl<'a> Generator<'a> {
 
     fn write_write(&mut self) -> io::Result<()> {
         self.c("std::write", false)?;
-        writeln!(self.out, "write:")?;
+        writeln!(self.out, "_write:")?;
         writeln!(self.out, "    mov     x16, 4")?;
         writeln!(self.out, "    svc     0")?;
         writeln!(self.out, "    ret")?;
@@ -446,7 +449,7 @@ impl<'a> Generator<'a> {
 
     fn write_putc(&mut self) -> io::Result<()> {
         self.c("std::putc", false)?;
-        writeln!(self.out, "putc:")?;
+        writeln!(self.out, "_putc:")?;
         writeln!(self.out, "    stp     x29, x30, [sp, -16]!")?;
         writeln!(self.out, "    mov     x29, sp")?;
         writeln!(self.out, "    sub     sp, sp, 16")?;
@@ -465,7 +468,7 @@ impl<'a> Generator<'a> {
 
     fn write_puti(&mut self) -> io::Result<()> {
         self.c("std::puti", false)?;
-        writeln!(self.out, "puti:")?;
+        writeln!(self.out, "_puti:")?;
         writeln!(self.out, "    stp     x29, x30, [sp, -48]!")?;
         writeln!(self.out, "    mov     x29, sp")?;
         writeln!(self.out, "    cmp     x0, 0")?;
@@ -518,7 +521,7 @@ impl<'a> Generator<'a> {
 
     fn write_exit(&mut self) -> io::Result<()> {
         self.c("std::exit", false)?;
-        writeln!(self.out, "exit:")?;
+        writeln!(self.out, "_exit:")?;
         writeln!(self.out, "    mov     x16, 1")?;
         writeln!(self.out, "    svc     0")?;
         writeln!(self.out)?;
@@ -575,16 +578,27 @@ pub fn generate_object_from_assembly(verbose: bool, assembly_path: &str, object_
         });
 }
 
-pub fn link_object_file(verbose: bool, object_path: &str, output_path: &str) {
+pub fn link_object_file(opts: &Opts, object_path: &str, output_path: &str) {
     let sdk_output = execute_command(false, "xcrun", &["--show-sdk-path"]).unwrap().stdout;
     let sdk_path = String::from_utf8_lossy(&sdk_output).trim().to_string();
 
-    execute_command(verbose, "ld",
-        &["-o", output_path, object_path, "-lSystem", "-syslibroot", &sdk_path, "-e", "_start", "-arch", "arm64"])
-        .unwrap_or_else(|_| {
-            eprintln!("error: cannot link object file to executable");
-            exit(1);
-        });
+    let mut args = vec![
+        "-o", output_path,
+        object_path,
+        "-lSystem",
+        "-syslibroot", &sdk_path,
+        "-e", "_start",
+        "-arch", "arm64"
+    ];
+
+    for flag in &opts.linker_flags {
+        args.push(flag.as_str());
+    }
+
+    execute_command(!opts.silent, "ld", &args).unwrap_or_else(|_| {
+        eprintln!("error: cannot link object file to executable");
+        exit(1);
+    });
 }
 
 fn execute_command(verbose: bool, program: &str, args: &[&str]) -> Result<Output, std::io::Error> {

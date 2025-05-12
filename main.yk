@@ -1,8 +1,6 @@
+fn printf(string fmt);
+
 fn main() int64 {
-    let x = 69;
-    let p = &x;
-    *p = 420;
-    puti(*p);
-    puti(x);
+    printf("Hello, world!\n");
     ret 0;
 }

@@ -84,7 +84,7 @@ fn compile_aarch64_darwin(ast: &Ast, opts: &Opts) {
         return;
     }
 
-    aarch64::link_object_file(!opts.silent, &object_path, &filebase);
+    aarch64::link_object_file(opts, &object_path, &filebase);
     let elapsed = start.elapsed();
     if !opts.silent {
         println!("INFO: Generating object and linking took {:.2?}", elapsed);

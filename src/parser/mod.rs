@@ -93,11 +93,22 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
         let return_type = match self.tokens.peek() {
             Some(token) => match token.kind {
                 // NOTE: return type is void, if it is not specified
-                TokenKind::FatArrow | TokenKind::OpenCurly => Type::Void,
+                TokenKind::FatArrow | TokenKind::OpenCurly | TokenKind::Semicolon => Type::Void,
                 _ => self.parse_type(),
             },
             None => unreachable!(),
         };
+
+        if let Some(_) = self.tokens.next_if(|token| token.kind == TokenKind::Semicolon) {
+            return Function {
+                name: name_token.text,
+                name_loc: name_token.loc,
+                ret_type: return_type,
+                params,
+                body: vec![],
+                is_external: true,
+            };
+        }
 
         if let Some(_) = self.tokens.next_if(|token| token.kind == TokenKind::FatArrow) {
             let expr = self.parse_expression();
@@ -112,6 +123,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                 ret_type: return_type,
                 params,
                 body,
+                is_external: false,
             };
         }
 
@@ -123,6 +135,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
             ret_type: return_type,
             params,
             body,
+            is_external: false,
         };
     }
 

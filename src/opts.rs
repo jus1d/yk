@@ -26,7 +26,8 @@ pub struct Opts {
     pub silent: bool,
     pub emit_comments: bool,
     pub enable_optimization: bool,
-    pub include_folders: Vec<String>
+    pub include_folders: Vec<String>,
+    pub linker_flags: Vec<String>,
 }
 
 impl Opts {
@@ -40,6 +41,7 @@ impl Opts {
             emit_comments: false,
             enable_optimization: false,
             include_folders: Vec::from(&[String::from("."), String::from("std")]),
+            linker_flags: vec![],
         };
         opts.program_name = args.next().unwrap();
 
@@ -74,8 +76,10 @@ impl Opts {
                     exit(0);
                 },
                 _ => {
-                    if let Some(include_folder) = arg.strip_prefix("-I") {
-                        opts.include_folders.push(include_folder.to_string());
+                    if let Some(linker_flag) = arg.strip_prefix("-L") {
+                        opts.linker_flags.push(linker_flag.into());
+                    } else if arg.starts_with("-l") || arg.starts_with("-L") {
+                        opts.linker_flags.push(arg);
                     } else {
                         // NOTE: If none of conditions: consider arg as input file path
                         opts.input_path = arg;
