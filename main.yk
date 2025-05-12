@@ -1,5 +1,8 @@
 include "std.yk";
 
 fn main() int64 {
+    let i = pow(2, 61);
+    puti(-i);
+    puti(i);
     ret 0;
 }
