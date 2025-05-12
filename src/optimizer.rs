@@ -95,7 +95,8 @@ fn evaluate_unary(op: &UnaryOp, operand: &Expr, loc: &Loc) -> Option<Expr> {
         Some(value) => match op {
             UnaryOp::Negate => {
                 Some(Expr::Literal { lit: Literal::Number(-value), loc: loc.clone() })
-            }
+            },
+            UnaryOp::AddressOf | UnaryOp::Dereference => Some(operand.clone()),
         },
         _ => None
     }

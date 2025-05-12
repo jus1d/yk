@@ -161,18 +161,41 @@ fn typecheck_statement(ast: &Ast, func: &Function, statement: &Statement, vars: 
                 },
             }
         },
-        Statement::Assignment { name, name_loc, value } => {
-            let actual_type = get_expression_type(ast, value, vars, builtin_funcs);
-            if let Some(variable) = vars.iter().find(|var| var.name == *name) {
-                let expected_type = variable.typ.clone();
-                if actual_type != expected_type {
-                    eprintln!("{}: error: assignment to `{}`: expected type `{}`, but got `{}`", name_loc, name, expected_type, actual_type);
+        Statement::Assignment { lhs, value } => {
+            let rhs_type = get_expression_type(ast, value, vars, builtin_funcs);
+
+            match lhs {
+                Expr::Variable { name, loc } => {
+                    if let Some(variable) = vars.iter().find(|var| var.name == *name) {
+                        let expected_type = variable.typ.clone();
+                        if rhs_type != expected_type {
+                            eprintln!("{}: error: assignment to `{}`: expected type `{}`, but got `{}`",
+                                     loc, name, expected_type, rhs_type);
+                            exit(1);
+                        }
+                    } else {
+                        eprintln!("{}: error: variable `{}` not found in this scope", loc, name);
+                        exit(1);
+                    }
+                },
+                Expr::Unary { op: UnaryOp::Dereference, operand, loc } => {
+                    let pointer_type = get_expression_type(ast, operand, vars, builtin_funcs);
+                    if let Type::Ptr(basetype) = pointer_type {
+                        if rhs_type != *basetype {
+                            eprintln!("{}: error: dereference assignment: expected type `{}`, but got `{}`",
+                                     loc, basetype, rhs_type);
+                            exit(1);
+                        }
+                    } else {
+                        eprintln!("{}: error: cannot dereference non-pointer type `{}`",
+                                 loc, pointer_type);
+                        exit(1);
+                    }
+                },
+                _ => {
+                    eprintln!("{}: error: invalid left-hand side of assignment", lhs.clone().loc());
                     exit(1);
                 }
-            }
-            else {
-                eprintln!("{}: error: variable `{}` not found in this scope", name_loc, name);
-                exit(1);
             }
         },
     }
@@ -217,12 +240,30 @@ fn typecheck_binop(ast: &Ast, op: &BinaryOp, lhs: &Expr, rhs: &Expr, loc: &Loc, 
 
 fn typecheck_unary(ast: &Ast, op: &UnaryOp, operand: &Expr, vars: &Vec<Variable>, builtin_funcs: &HashMap<String, Function>) {
     let operand_type = get_expression_type(ast, operand, vars, builtin_funcs);
+    let operand_loc = operand.clone().loc();
     match op {
         UnaryOp::Negate => {
             if operand_type != Type::Int64 {
-                eprintln!("{}: error: unary operator `{}` cannot be applied to `{}`, expected `{}`", operand.clone().loc(), UnaryOp::Negate, operand_type, Type::Int64);
+                eprintln!("{}: error: unary operator `{}` cannot be applied to `{}`, expected `{}`", operand_loc, UnaryOp::Negate, operand_type, Type::Int64);
+                exit(1);
             }
         },
+        UnaryOp::AddressOf => {
+            match operand {
+                Expr::Variable { .. } => {},
+                _ => {
+                    eprintln!("{}: error: cannot take address of expression, taking address only of variables is allowed", operand_loc);
+                    exit(1);
+                }
+            }
+        },
+        UnaryOp::Dereference => {
+            if let Type::Ptr(_) = operand_type { }
+            else {
+                eprintln!("{}: error: cannot dereference expression of type {}", operand_loc, operand_type);
+                exit(1);
+            }
+        }
     }
 }
 
@@ -280,6 +321,7 @@ fn typecheck_funcall(ast: &Ast, name: &str, args: &[Expr], loc: &Loc, vars: &Vec
         let arg = &args[i];
         let expected_type = &func.params[i].typ;
         let actual_type = &get_expression_type(ast, arg, vars, builtin_funcs);
+
         if expected_type != actual_type {
             eprintln!("{}: error: mismatched arguments types. expected `{}`, but got `{}`", arg.clone().loc(), expected_type, actual_type);
             exit(1);
@@ -321,7 +363,7 @@ fn get_expression_type(ast: &Ast, expr: &Expr, vars: &Vec<Variable>, builtin_fun
     match expr {
         Expr::Literal { lit, .. } => get_literal_type(lit),
         Expr::Binary { op, .. } => get_binary_operation_type(op),
-        Expr::Unary { op, .. } => get_unary_operation_type(op),
+        Expr::Unary { op, operand, .. } => get_unary_operation_type(ast, op, operand, vars, builtin_funcs),
         Expr::Funcall { name, loc, .. } => get_funcall_type(ast, name, loc, builtin_funcs),
         Expr::Variable { name, loc } => get_variable_type(name, vars, loc),
         Expr::Index { collection, .. } => get_index_type(ast, collection, vars, builtin_funcs),
@@ -334,6 +376,7 @@ fn get_literal_type(lit: &Literal) -> Type {
         Literal::String(_) => return Type::String,
         Literal::Bool(_) => return Type::Bool,
         Literal::Char(_) => return Type::Char,
+        Literal::Nil => Type::Ptr(Box::new(Type::Void)),
     }
 }
 
@@ -349,10 +392,21 @@ fn get_binary_operation_type(op: &BinaryOp) -> Type {
     }
 }
 
-fn get_unary_operation_type(op: &UnaryOp) -> Type {
+fn get_unary_operation_type(ast: &Ast, op: &UnaryOp, operand: &Expr, vars: &Vec<Variable>, builtin_funcs: &HashMap<String, Function>) -> Type {
     match op {
-        UnaryOp::Negate => {
-            return Type::Int64;
+        UnaryOp::Negate => Type::Int64,
+        UnaryOp::AddressOf => {
+            let basetype = get_expression_type(ast, operand, vars, builtin_funcs);
+            Type::Ptr(Box::new(basetype))
+        },
+        UnaryOp::Dereference => {
+            let ptr_type = get_expression_type(ast, &operand.clone(), vars, builtin_funcs);
+            if let Type::Ptr(basetype) = ptr_type {
+                return *basetype;
+            }
+
+            eprintln!("{}: error: cannot dereference expression of type {}", operand.clone().loc(), ptr_type);
+            exit(1);
         },
     }
 }

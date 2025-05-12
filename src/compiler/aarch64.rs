@@ -194,10 +194,26 @@ impl<'a> Generator<'a> {
                 self.c(&format!("declaration: {} = {}", name, value), true)?;
                 writeln!(self.out, "    str     x8, [x29, {}]", 16 + get_variable_position(name, scope) * 8)?;
             }
-            Statement::Assignment { name, value, .. } => {
-                self.write_expression(value, scope, current_func, 8)?;
-                self.c(&format!("assignment: {} = {}", name, value), true)?;
-                writeln!(self.out, "    str     x8, [x29, {}]", 16 + get_variable_position(name, scope) * 8)?;
+            Statement::Assignment { lhs, value } => {
+                match lhs {
+                    Expr::Variable { name, .. } => {
+                        self.write_expression(value, scope, current_func, 8)?;
+                        self.c(&format!("assignment: {} = {}", name, value), true)?;
+                        writeln!(self.out, "    str     x8, [x29, {}]", 16 + get_variable_position(name, scope) * 8)?;
+                    },
+                    Expr::Unary { op: UnaryOp::Dereference, operand, .. } => {
+                        if let Expr::Variable { name, .. } = operand.as_ref() {
+                            self.write_expression(operand, scope, current_func, 8)?;
+                            self.c(&format!("dereference assignment: *{} = {}", name, value), true)?;
+                            self.write_expression(value, scope, current_func, 9)?;
+                            writeln!(self.out, "    str     x9, [x8]")?;
+                        } else {
+                            eprintln!("{}: error: can only dereference variables in assignments", operand.clone().loc());
+                            exit(1);
+                        }
+                    }
+                    _ => todo!(),
+                }
             }
         }
         Ok(())
@@ -247,6 +263,10 @@ impl<'a> Generator<'a> {
             Literal::Char(ch) => {
                 self.c(&format!("char: {}", ch), true)?;
                 writeln!(self.out, "    mov     x{}, {}", target_register_index, *ch as u8)?;
+            },
+            Literal::Nil => {
+                self.c("nil", true)?;
+                writeln!(self.out, "    mov     x{}, 0", target_register_index)?;
             }
         }
         Ok(())
@@ -347,6 +367,18 @@ impl<'a> Generator<'a> {
         match op {
             UnaryOp::Negate => {
                 writeln!(self.out, "    neg     x{}, x{}", target_register_index, target_register_index)?;
+            },
+            UnaryOp::AddressOf => {
+                if let Expr::Variable { name, .. } = operand {
+                    let var_pos = get_variable_position(name, scope);
+                    writeln!(self.out, "    add     x{}, x29, #{}", target_register_index, 16 + var_pos * 8)?;
+                } else {
+                    eprintln!("{}: error: cannot take address of non-variable expression", operand.clone().loc());
+                    exit(1);
+                }
+            },
+            UnaryOp::Dereference => {
+                writeln!(self.out, "    ldr     x{}, [x{}]", target_register_index, target_register_index)?;
             },
         }
 

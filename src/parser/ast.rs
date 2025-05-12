@@ -37,6 +37,7 @@ pub enum Type {
     String,
     Bool,
     Char,
+    Ptr(Box<Type>),
 }
 
 #[derive(Clone, Debug)]
@@ -61,8 +62,7 @@ pub enum Statement {
         value: Expr,
     },
     Assignment {
-        name: String,
-        name_loc: Loc,
+        lhs: Expr,
         value: Expr,
     },
     Ret {
@@ -76,6 +76,7 @@ pub enum Literal {
     String(String),
     Bool(bool),
     Char(char),
+    Nil,
 }
 
 #[derive(Clone, Debug)]
@@ -134,4 +135,6 @@ pub enum BinaryOp {
 #[derive(Clone, Debug)]
 pub enum UnaryOp {
     Negate,
+    AddressOf,
+    Dereference,
 }

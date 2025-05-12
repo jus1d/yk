@@ -208,146 +208,120 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
     }
 
     fn parse_statement(&mut self) -> Statement {
-        match self.tokens.next() {
-            Some(token) => match token.kind {
-                TokenKind::Keyword => match token.text.as_str() {
-                    "ret" => {
-                        if self.tokens.next_if(|t| t.kind == TokenKind::Semicolon).is_some() {
-                            return Statement::Ret { value: None };
-                        }
-
-                        let value = self.parse_expression();
-                        self.expect(TokenKind::Semicolon);
-
-                        return Statement::Ret { value: Some(value) };
-                    },
-                    "if" => {
-                        let mut branches = Vec::new();
-
-                        let mut condition = self.parse_expression();
-                        let mut consequence = self.parse_block();
-
-                        branches.push(Branch {
-                            condition,
-                            block: consequence,
-                        });
-
-                        while let Some(_) = self.tokens.next_if(|t| t.kind == TokenKind::Keyword && &t.text == "else") {
-                            if let Some(_) = self.tokens.next_if(|t| t.kind == TokenKind::Keyword && &t.text == "if") {
-                                condition = self.parse_expression();
-                                consequence = self.parse_block();
-
-                                branches.push(Branch {
-                                    condition,
-                                    block: consequence,
-                                });
-                            } else {
-                                let otherwise = self.parse_block();
-                                return Statement::If { branches, otherwise }
-                            }
-                        }
-
-                        return Statement::If { branches, otherwise: Vec::new() }
-                    },
-                    "while" => {
-                        if let Some(next) = self.tokens.peek() {
-                            if next.kind == TokenKind::OpenCurly {
-                                let block = self.parse_block();
-
-                                return Statement::While { condition: None, block }
-                            }
-                        }
-
-                        let condition = self.parse_expression();
-                        let block = self.parse_block();
-
-                        return Statement::While { condition: Some(condition), block };
-                    },
-                    "let" => {
-                        let name_token = self.expect(TokenKind::Identifier);
-
-                        match self.tokens.next() {
-                            Some(token) => match token.kind {
-                                TokenKind::Colon => {
-                                    let typ = self.parse_type();
-                                    if typ == Type::Never || typ == Type::Void {
-                                        eprintln!("{}: error: cannot declare variable with type `{}`", token.loc, typ);
-                                        exit(1);
-                                    }
-
-                                    if self.tokens.next_if(|token| token.kind == TokenKind::Semicolon).is_some() {
-                                        let value = get_zero_value(typ.clone(), Loc::empty());
-                                        return Statement::Declaration { name: name_token.text, name_loc: name_token.loc, typ: Some(typ), value };
-                                    }
-
-                                    self.expect(TokenKind::Assign);
-                                    let value = self.parse_expression();
-                                    self.expect(TokenKind::Semicolon);
-                                    return Statement::Declaration { name: name_token.text, name_loc: name_token.loc, typ: Some(typ), value };
-                                },
-                                TokenKind::Assign => {
-                                    let value = self.parse_expression();
-                                    self.expect(TokenKind::Semicolon);
-                                    return Statement::Declaration { name: name_token.text, name_loc: name_token.loc, typ: None, value };
-                                },
-                                TokenKind::Semicolon => {
-                                    eprintln!("{}: error: cannot know type of variable at compile time, specify type annotation or assign a value with known type", token.loc);
-                                    exit(1);
-                                },
-                                _ => {
-                                    eprintln!("{}: error: expected {} or {}, but got {}", token.loc, TokenKind::Colon, TokenKind::Assign, token);
-                                    exit(1);
-                                },
-                            },
-                            None => unreachable!(),
-                        }
-                    },
-                    _ => {
-                        eprintln!("{}: error: unexpected {}", token.loc, token);
-                        exit(1);
-                    },
-                },
-                TokenKind::Identifier => {
-                    let name = token.text.clone();
-                    let loc = token.loc.clone();
-
-                    if self.tokens.next_if(|token| token.kind == TokenKind::Assign).is_some() {
-                        // Assignment
-                        let value = self.parse_expression();
-                        self.expect(TokenKind::Semicolon);
-                        return Statement::Assignment { name, name_loc: loc, value }
+        if let Some(token) = self.tokens.next_if(|token| token.kind == TokenKind::Keyword) {
+            match token.text.as_str() {
+                "ret" => {
+                    if self.tokens.next_if(|t| t.kind == TokenKind::Semicolon).is_some() {
+                        return Statement::Ret { value: None };
                     }
 
-                    // Function call
-                    let mut args = Vec::new();
-
-                    if self.tokens.next_if(|t| t.kind == TokenKind::OpenParen).is_none() {
-                        let mut loc = token.loc.clone();
-                        loc.col += token.text.len();
-                        eprintln!("{}: error: expected {} after callee name", loc, TokenKind::OpenParen);
-                        exit(1);
-                    }
-
-                    if self.tokens.peek().map(|t| t.kind) != Some(TokenKind::CloseParen) {
-                        args.push(self.parse_expression());
-
-                        while self.tokens.next_if(|t| t.kind == TokenKind::Comma).is_some() {
-                            args.push(self.parse_expression());
-                        }
-                    }
-
-                    self.expect(TokenKind::CloseParen);
+                    let value = self.parse_expression();
                     self.expect(TokenKind::Semicolon);
 
-                    return Statement::Funcall { name, args, loc };
+                    return Statement::Ret { value: Some(value) };
+                },
+                "if" => {
+                    let mut branches = Vec::new();
+
+                    let mut condition = self.parse_expression();
+                    let mut consequence = self.parse_block();
+
+                    branches.push(Branch {
+                        condition,
+                        block: consequence,
+                    });
+
+                    while let Some(_) = self.tokens.next_if(|t| t.kind == TokenKind::Keyword && &t.text == "else") {
+                        if let Some(_) = self.tokens.next_if(|t| t.kind == TokenKind::Keyword && &t.text == "if") {
+                            condition = self.parse_expression();
+                            consequence = self.parse_block();
+
+                            branches.push(Branch {
+                                condition,
+                                block: consequence,
+                            });
+                        } else {
+                            let otherwise = self.parse_block();
+                            return Statement::If { branches, otherwise }
+                        }
+                    }
+
+                    return Statement::If { branches, otherwise: Vec::new() }
+                },
+                "while" => {
+                    if let Some(next) = self.tokens.peek() {
+                        if next.kind == TokenKind::OpenCurly {
+                            let block = self.parse_block();
+
+                            return Statement::While { condition: None, block }
+                        }
+                    }
+
+                    let condition = self.parse_expression();
+                    let block = self.parse_block();
+
+                    return Statement::While { condition: Some(condition), block };
+                },
+                "let" => {
+                    let name_token = self.expect(TokenKind::Identifier);
+
+                    match self.tokens.next() {
+                        Some(token) => match token.kind {
+                            TokenKind::Colon => {
+                                let typ = self.parse_type();
+                                if typ == Type::Never || typ == Type::Void {
+                                    eprintln!("{}: error: cannot declare variable with type `{}`", token.loc, typ);
+                                    exit(1);
+                                }
+
+                                if self.tokens.next_if(|token| token.kind == TokenKind::Semicolon).is_some() {
+                                    let value = get_zero_value(typ.clone(), Loc::empty());
+                                    return Statement::Declaration { name: name_token.text, name_loc: name_token.loc, typ: Some(typ), value };
+                                }
+
+                                self.expect(TokenKind::Assign);
+                                let value = self.parse_expression();
+                                self.expect(TokenKind::Semicolon);
+                                return Statement::Declaration { name: name_token.text, name_loc: name_token.loc, typ: Some(typ), value };
+                            },
+                            TokenKind::Assign => {
+                                let value = self.parse_expression();
+                                self.expect(TokenKind::Semicolon);
+                                return Statement::Declaration { name: name_token.text, name_loc: name_token.loc, typ: None, value };
+                            },
+                            TokenKind::Semicolon => {
+                                eprintln!("{}: error: cannot know type of variable at compile time, specify type annotation or assign a value with known type", token.loc);
+                                exit(1);
+                            },
+                            _ => {
+                                eprintln!("{}: error: expected {} or {}, but got {}", token.loc, TokenKind::Colon, TokenKind::Assign, token);
+                                exit(1);
+                            },
+                        },
+                        None => unreachable!(),
+                    }
                 },
                 _ => {
                     eprintln!("{}: error: unexpected {}", token.loc, token);
                     exit(1);
                 },
-            },
-            None => unreachable!(),
+            }
         }
+
+        let lhs = self.parse_expression();
+
+        if let Expr::Funcall { name, args, loc } = lhs {
+            self.expect(TokenKind::Semicolon);
+
+            return Statement::Funcall { name, args, loc };
+        }
+
+        self.expect(TokenKind::Assign);
+
+        let value = self.parse_expression();
+        self.expect(TokenKind::Semicolon);
+
+        return Statement::Assignment { lhs: lhs.clone(), value };
     }
 
     fn parse_expression(&mut self) -> Expr {
@@ -360,6 +334,7 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
             exit(1);
         }
 
+        // TODO: merge these 3 branches
         if let Some(token) =  self.tokens.next_if(|token| token.kind == TokenKind::Minus) {
             let operand = self.parse_expr_prec(10);
             if matches!(operand, Expr::Unary { .. }) {
@@ -368,6 +343,26 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
             }
 
             return Expr::Unary { op: UnaryOp::Negate, operand: Box::new(operand), loc: token.loc }
+        }
+
+        if let Some(token) =  self.tokens.next_if(|token| token.kind == TokenKind::Ampersand) {
+            let operand = self.parse_expr_prec(10);
+            if matches!(operand, Expr::Unary { .. }) {
+                eprintln!("{}: error: cannot nest unary operations", operand.clone().loc());
+                exit(1);
+            }
+
+            return Expr::Unary { op: UnaryOp::AddressOf, operand: Box::new(operand), loc: token.loc }
+        }
+
+        if let Some(token) =  self.tokens.next_if(|token| token.kind == TokenKind::Star) {
+            let operand = self.parse_expr_prec(10);
+            if matches!(operand, Expr::Unary { .. }) {
+                eprintln!("{}: error: cannot nest unary operations", operand.clone().loc());
+                exit(1);
+            }
+
+            return Expr::Unary { op: UnaryOp::Dereference, operand: Box::new(operand), loc: token.loc }
         }
 
         let mut primary = self.parse_primary_expr();
@@ -498,10 +493,13 @@ impl<Tokens> Parser<Tokens> where Tokens: Iterator<Item = Token> {
                     if let Some(typ) = get_primitive_type(&token.text) {
                         return typ;
                     }
-
                     eprintln!("{}: error: unknown type `{}`", token.loc, token.text);
                     exit(1);
-                }
+                },
+                Star => {
+                    let basetype = self.parse_type();
+                    return Type::Ptr(Box::new(basetype));
+                },
                 _ => {
                     eprintln!("{}: error: expected type, but got {}", token.loc, token);
                     exit(1);
@@ -620,6 +618,8 @@ impl fmt::Display for UnaryOp {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", match self {
                 UnaryOp::Negate => "-",
+                UnaryOp::AddressOf => "&",
+                UnaryOp::Dereference => "*",
             }
         )
     }
@@ -632,20 +632,22 @@ impl fmt::Display for Literal {
             Literal::String(content) => write!(f, "\"{}\"", content.replace("\n", "\\n")),
             Literal::Bool(value) => write!(f, "{}", value),
             Literal::Char(ch) => write!(f, "{}", ch),
+            Literal::Nil => write!(f, "nil"),
         }
     }
 }
 
 impl fmt::Display for Type {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", match self {
-            Type::Never => "!",
-            Type::Void => "void",
-            Type::Int64 => "int64",
-            Type::String => "string",
-            Type::Bool => "bool",
-            Type::Char => "char",
-        })
+        match self {
+            Type::Never => write!(f, "!"),
+            Type::Void => write!(f, "void"),
+            Type::Int64 => write!(f, "int64"),
+            Type::String => write!(f, "string"),
+            Type::Bool => write!(f, "bool"),
+            Type::Char => write!(f, "char"),
+            Type::Ptr(basetype) => write!(f, "*{}", basetype),
+        }
     }
 }
 
@@ -667,6 +669,7 @@ fn get_zero_value(typ: Type, loc: Loc) -> Expr {
         Type::String => Expr::Literal { lit: Literal::String(String::new()), loc },
         Type::Char => Expr::Literal { lit: Literal::Char('\0'), loc },
         Type::Bool => Expr::Literal { lit: Literal::Bool(false), loc },
+        Type::Ptr(_) => Expr::Literal { lit: Literal::Nil, loc },
         Type::Never => unreachable!(),
         Type::Void => unreachable!(),
     }
