@@ -209,13 +209,23 @@ fn typecheck_binop(ast: &Ast, op: &BinaryOp, lhs: &Expr, rhs: &Expr, loc: &Loc, 
     let lhs_type = get_expression_type(ast, lhs, vars, builtin_funcs);
     let rhs_type = get_expression_type(ast, rhs, vars, builtin_funcs);
     match op {
-        BinaryOp::Add | BinaryOp::Sub => {
+        BinaryOp::Add => {
             match (lhs_type.clone(), rhs_type.clone()) {
                 (Type::Int64, Type::Int64)  => {},
                 (Type::Ptr(_), Type::Int64) => {},
                 (Type::Int64, Type::Ptr(_)) => {},
                 _ => {
                     eprintln!("{}: error: binary operation `{}` requires either two operands of type `int64` or combination of `int64` and pointer in any order, but got `{}` and `{}`", loc, op, lhs_type, rhs_type);
+                    exit(1);
+                },
+            }
+        },
+        BinaryOp::Sub => {
+            match (lhs_type.clone(), rhs_type.clone()) {
+                (Type::Int64, Type::Int64)  => {},
+                (Type::Ptr(_), Type::Int64) => {},
+                _ => {
+                    eprintln!("{}: error: binary operation `{}` requires either two operands of type `int64` or combination of pointer and `int64` exactly in that order, but got `{}` and `{}`", loc, op, lhs_type, rhs_type);
                     exit(1);
                 },
             }
@@ -401,12 +411,22 @@ fn get_literal_type(lit: &Literal) -> Type {
 
 fn get_binary_operation_type(op: &BinaryOp, lhs_type: Type, rhs_type: Type, loc: Loc) -> Type {
     match op {
-        BinaryOp::Add | BinaryOp::Sub => {
+        BinaryOp::Add => {
             match (lhs_type.clone(), rhs_type.clone()) {
                 (Type::Int64, Type::Int64)  => Type::Int64,
                 (Type::Ptr(basetype), Type::Int64) | (Type::Int64, Type::Ptr(basetype)) => Type::Ptr(basetype),
                 _ => {
                     eprintln!("{}: error: binary operation `{}` requires either two operands of type `int64` or combination of `int64` and pointer in any order, but got `{}` and `{}`", loc, op, lhs_type, rhs_type);
+                    exit(1);
+                },
+            }
+        },
+        BinaryOp::Sub => {
+            match (lhs_type.clone(), rhs_type.clone()) {
+                (Type::Int64, Type::Int64)  => Type::Int64,
+                (Type::Ptr(basetype), Type::Int64) => Type::Ptr(basetype),
+                _ => {
+                    eprintln!("{}: error: binary operation `{}` requires either two operands of type `int64` or combination of pointer and `int64` exactly in that order, but got `{}` and `{}`", loc, op, lhs_type, rhs_type);
                     exit(1);
                 },
             }
