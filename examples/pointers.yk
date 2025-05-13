@@ -1,0 +1,11 @@
+fn set(addr: *int64, v: int64) {
+    *addr = v;
+}
+
+fn main() int64 {
+    let x = 69;
+    puti(x); // 69
+    set(&x, 420);
+    puti(x); // 420
+    ret 0;
+}

@@ -1,0 +1,21 @@
+// All variables are allocated on the stack. When a function returns a pointer to a local variable,
+// that variable should be moved to the heap. Currently, you can return a pointer from a function,
+// but there is a high probability of encountering undefined behavior, as shown in the example below.
+
+fn init() *int64 {
+    let x = 69;
+    ret &x;
+}
+
+fn init2() *int64 {
+    let y = 420;
+    ret &y;
+}
+
+fn main() int64 {
+    let p1: *int64 = init();
+    let p2: *int64 = init2();
+    puti(*p1); // 69
+    puti(*p2); // 420
+    ret 0;
+}
