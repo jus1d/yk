@@ -493,3 +493,5 @@ fn get_index_type(ast: &Ast, expr: &Expr, vars: &Vec<Variable>, builtin_funcs: &
         _ => unreachable!(),
     }
 }
+
+// TODO: merge functions like: `typecheck_something()` and `get_something_type()` together
