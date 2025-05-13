@@ -209,7 +209,18 @@ fn typecheck_binop(ast: &Ast, op: &BinaryOp, lhs: &Expr, rhs: &Expr, loc: &Loc, 
     let lhs_type = get_expression_type(ast, lhs, vars, builtin_funcs);
     let rhs_type = get_expression_type(ast, rhs, vars, builtin_funcs);
     match op {
-        BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Div | BinaryOp::Mod => {
+        BinaryOp::Add | BinaryOp::Sub => {
+            match (lhs_type.clone(), rhs_type.clone()) {
+                (Type::Int64, Type::Int64)  => {},
+                (Type::Ptr(_), Type::Int64) => {},
+                (Type::Int64, Type::Ptr(_)) => {},
+                _ => {
+                    eprintln!("{}: error: binary operation `{}` requires either two operands of type `int64` or combination of `int64` and pointer in any order, but got `{}` and `{}`", loc, op, lhs_type, rhs_type);
+                    exit(1);
+                },
+            }
+        },
+        BinaryOp::Mul | BinaryOp::Div | BinaryOp::Mod => {
             if lhs_type != Type::Int64 {
                 eprintln!("{}: error: binary operation `{}` only supported for type `int64`", loc, op);
                 exit(1);
@@ -366,7 +377,11 @@ pub fn check_entrypoint_declaration(ast: &Ast) {
 fn get_expression_type(ast: &Ast, expr: &Expr, vars: &Vec<Variable>, builtin_funcs: &HashMap<String, Function>) -> Type {
     match expr {
         Expr::Literal { lit, .. } => get_literal_type(lit),
-        Expr::Binary { op, .. } => get_binary_operation_type(op),
+        Expr::Binary { op, lhs, rhs, .. } => {
+            let lhs_type = get_expression_type(ast, lhs, vars, builtin_funcs);
+            let rhs_type = get_expression_type(ast, rhs, vars, builtin_funcs);
+            get_binary_operation_type(op, lhs_type, rhs_type, expr.clone().loc())
+        },
         Expr::Unary { op, operand, .. } => get_unary_operation_type(ast, op, operand, vars, builtin_funcs),
         Expr::Funcall { name, loc, .. } => get_funcall_type(ast, name, loc, builtin_funcs),
         Expr::Variable { name, loc } => get_variable_type(name, vars, loc),
@@ -384,9 +399,19 @@ fn get_literal_type(lit: &Literal) -> Type {
     }
 }
 
-fn get_binary_operation_type(op: &BinaryOp) -> Type {
+fn get_binary_operation_type(op: &BinaryOp, lhs_type: Type, rhs_type: Type, loc: Loc) -> Type {
     match op {
-        BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Div | BinaryOp::Mod => {
+        BinaryOp::Add | BinaryOp::Sub => {
+            match (lhs_type.clone(), rhs_type.clone()) {
+                (Type::Int64, Type::Int64)  => Type::Int64,
+                (Type::Ptr(basetype), Type::Int64) | (Type::Int64, Type::Ptr(basetype)) => Type::Ptr(basetype),
+                _ => {
+                    eprintln!("{}: error: binary operation `{}` requires either two operands of type `int64` or combination of `int64` and pointer in any order, but got `{}` and `{}`", loc, op, lhs_type, rhs_type);
+                    exit(1);
+                },
+            }
+        },
+        BinaryOp::Mul | BinaryOp::Div | BinaryOp::Mod => {
             return Type::Int64;
         },
         BinaryOp::LogicalOr | BinaryOp::LogicalAnd | BinaryOp::EQ | BinaryOp::NE |

@@ -1,3 +1,10 @@
+// NOTE: very dirty and nasty shit
+
 fn main() int64 {
+    let x = 69;
+    let y = 420;
+    let p = &x;
+    p = p + 8;
+    puti(*p);
     ret 0;
 }
