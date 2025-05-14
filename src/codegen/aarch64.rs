@@ -244,8 +244,37 @@ impl<'a> Generator<'a> {
         match lit {
             Literal::Number(n) => {
                 self.c(&format!("number: {}", n), true)?;
-                writeln!(self.out, "    mov     x{}, {}", target_register_index, n)?;
-            }
+
+                let signed = *n as i64;
+
+                if signed >= -65536 && signed <= 65535 {
+                    writeln!(self.out, "    mov     x{}, {}", target_register_index, signed)?;
+                    return Ok(());
+                }
+
+                let unsigned = *n as u64;
+                let mut parts: [u16; 4] = [0; 4];
+                for i in 0..4 {
+                    parts[i] = ((unsigned >> (16 * i)) & 0xFFFF) as u16;
+                }
+
+                let mut first = true;
+                for (i, &part) in parts.iter().enumerate() {
+                    if part != 0 {
+                        let shift = i * 16;
+                        if first {
+                            writeln!(self.out, "    movz    x{}, #{}, lsl #{}", target_register_index, part, shift)?;
+                            first = false;
+                        } else {
+                            writeln!(self.out, "    movk    x{}, #{}, lsl #{}", target_register_index, part, shift)?;
+                        }
+                    }
+                }
+
+                if unsigned == 0 {
+                    writeln!(self.out, "    mov     x{}, #0", target_register_index)?;
+                }
+            },
             Literal::String(text) => {
                 let idx = match self.strings.iter().position(|s| s == text) {
                     Some(idx) => idx,

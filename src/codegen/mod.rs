@@ -10,13 +10,13 @@ use std::path::Path;
 use std::process::exit;
 use std::time::Instant;
 
-pub struct Compiler {
+pub struct Generator {
     ast: Ast,
 }
 
-impl Compiler {
+impl Generator {
     pub fn new(ast: Ast) -> Self {
-        Compiler {
+        Generator {
             ast,
         }
     }

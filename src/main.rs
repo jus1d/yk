@@ -1,5 +1,5 @@
 pub mod optimizer;
-pub mod compiler;
+pub mod codegen;
 pub mod analyzer;
 pub mod parser;
 pub mod lexer;
@@ -36,6 +36,6 @@ fn main() {
         optimizer::eliminate_unused_functions(&mut ast);
     }
 
-    let compiler = compiler::Compiler::new(ast);
+    let compiler = codegen::Generator::new(ast);
     compiler.compile(&opts);
 }
