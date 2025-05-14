@@ -1,0 +1,12 @@
+fn main() int64 {
+    let acc = 0;
+    let i = 3;
+    while i < 1000 {
+        if i % 3 == 0 || i % 5 == 0 {
+            acc = acc + i;
+        }
+        i = i + 1;
+    }
+    puti(acc);
+    ret 0;
+}

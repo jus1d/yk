@@ -1,0 +1,29 @@
+// NOTE: very dirty and nasty shit
+
+// TODO: x[i] = *(x + (i * sizeof(x[0])))
+
+fn malloc(bytes: int64) *int64;
+
+fn main() int64 {
+    let n = 10;
+    let xs: *int64 = malloc(n * 8);
+
+    let i = 0;
+    while i < n {
+        // TODO: Something weird with this: let xi = xs + (i * 8);
+        let offset = i * 8;
+        let xi = xs + offset;
+        *xi = i;
+        i = i + 1;
+    }
+
+    i = 0;
+    while i < n {
+        let offset = i * 8;
+        let xi = xs + offset;
+        puti(*xi);
+        i = i + 1;
+    }
+
+    ret 0;
+}

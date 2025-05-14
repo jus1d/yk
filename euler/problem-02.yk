@@ -1,0 +1,21 @@
+include "std.yk";
+
+fn main() int64 {
+    let a = 1;
+    let b = 2;
+    let target = 2000*2000;
+
+    let acc = 0;
+
+    while a < target {
+        if a % 2 == 0 {
+            acc = acc + a;
+        }
+        let c = a + b;
+        a = b;
+        b = c;
+    }
+    puti(acc);
+
+    ret 0;
+}
